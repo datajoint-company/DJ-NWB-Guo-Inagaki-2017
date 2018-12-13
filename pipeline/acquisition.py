@@ -10,24 +10,51 @@ import datajoint as dj
 from .helper_functions import get_one_from_nested_array, get_list_from_nested_array, datetimeformat_ydm, datetimeformat_ymd, time_unit_convert_factor
 
 import datajoint as dj
-from . import reference, subject
+from . import reference, subject, behavior
 
 schema = dj.schema('ttngu207_acquisition',locals())
 
 @schema
 class ExperimentType(dj.Lookup):
     definition = """
-    experiment_type_name: varchar(64)
+    experiment_type: varchar(64)
     """
     contents = [
         ['behavior'], ['extracelluar'], ['photostim']
+    ]
+    
+@schema
+class IntracellularInfo(dj.Manual):
+    definition = """ Table containing information relating to the intracelluar recording (e.g. cell info)
+    cell_id: varchar(64)
+    ---
+    cell_type: enum('excitatory','inhibitory','N/A')
+    -> RecordingLocation
+    """    
+    contents = [
+        {'cell_id':'N/A','cell_type':'N/A',
+         'brain_location':'N/A','brain_location_full_name':'N/A',
+         'cortical_layer': 'N/A', 'brain_subregion':'N/A'}
+    ]
+    
+@schema
+class ExtracellularInfo(dj.Manual):
+    definition = """ Table containing information relating to the extracelluar recording (e.g. location)
+    ec_id: varchar(64)
+    ---
+    -> RecordingLocation
+    """    
+    contents = [
+        {'ec_id':'N/A',
+         'brain_location':'N/A','brain_location_full_name':'N/A',
+         'cortical_layer': 'N/A', 'brain_subregion':'N/A'}
     ]
 
 @schema 
 class RecordingLocation(dj.Manual): 
     definition = """ 
     -> reference.BrainLocation
-    recording_depth: float # depth in um    
+    recording_depth=null: float # depth in um    
     """
 
 @schema
@@ -48,12 +75,13 @@ class PhotoStim(dj.Manual):
 @schema
 class Session(dj.Manual):
     definition = """
-    -> subject.Cell
+    -> subject.Subject
     session_time: datetime    # session time
     ---
-    -> RecordingLocation
+    -> ExtracellularInfo
+    -> IntracellularInfo
     session_directory = "": varchar(256)
-    session_note = "" : varchar(256) # 
+    session_note = "" : varchar(256) 
     """
 
     class Experimenter(dj.Part):
@@ -67,6 +95,135 @@ class Session(dj.Manual):
         -> master
         -> ExperimentType
         """
+
+@schema
+class TrialSet(dj.Imported):
+    definition = """
+    -> Session
+    ---
+    n_trials: int # total number of trials
+    trial_time_unit = 'second': enum('millisecond','second','minute','hour','day')  # time unit of this trial (this might be redundant in our schema, as we can figure this out from the sampling rate)
+    """
+    class Trial(dj.Part):
+        definition = """
+        -> master
+        trial_idx: int
+        ---
+        -> reference.TrialType
+        pole_trial_condition: enum('Go','NoGo')  # string indicating whether the pole was presented in a ‘Go’ or ‘Nogo’ location
+        pole_position: float                     # the location of the pole along the anteroposterior axis of the animal in microns
+        pole_in_time: float                      # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), in units of seconds, relative to trialStartTimes
+        pole_out_time: float                     # the end of the sample period (e.g. the onset of pole motion away from the exploration area), in seconds
+        lick_time: longblob                      # an array of times of when the mouse’s tongue initiates contact with the spout, in seconds
+        start_sample: int       # the index of the starting sample of this trial, with respect to the starting of this session (at 0th sample point) - this way, time will be derived from the sampling rate of a particular recording downstream
+        end_sample: int         # the index of the ending sample of this trial, with respect to the starting of this session (at 0th sample point) - this way, time will be derived from the sampling rate of a particular recording downstream
+        """
+
+    def _make_tuples(self,key):
+        
+        data_dir = os.path.abspath('..//NWB_Janelia_datasets//crcns_ssc5_data_HiresGutnisky2015')
+        sess_data_dir = os.path.join(data_dir,'datafiles')
+        
+        sess_data_files = os.listdir(sess_data_dir)
+                
+        # Get the Session definition from keys
+        animal_id = key['subject_id']
+        cell = key['cell_id']
+        date_of_experiment = key['session_time']
+                
+        # Convert datetime to string format 
+        date_of_experiment = datetime.strftime(date_of_experiment,datetimeformat_ymd) # expected datetime format: yymmdd
+        
+        # Search the filenames to find a match for "this" session (based on key)
+        sess_data_file = None
+        for s in sess_data_files:
+            m1 = re.search(animal_id, s) 
+            m2 = re.search(cell, s) 
+            m3 = re.search(date_of_experiment, s) 
+            if (m1 is not None) and (m2 is not None) and (m3 is not None):
+                sess_data_file = s
+                break
+        
+        # If session not found from dataset, break
+        if sess_data_file is None:
+            print(f'Session not found! - Subject: {animal_id} - Cell: {cell} - Date: {date_of_experiment}')
+            return
+        else: print(f'Found datafile: {sess_data_file}')
+        
+        # Now read the data and start ingesting
+        matfile = sio.loadmat(os.path.join(sess_data_dir,sess_data_file), struct_as_record=False)
+        sessdata = matfile['c'][0,0]
+        
+        timeUnitIds = get_list_from_nested_array(sessdata.timeUnitIds)
+        timeUnitNames = get_list_from_nested_array(sessdata.timeUnitNames)
+        timesUnitDict = {}
+        for idx, val in enumerate(timeUnitIds):
+            timesUnitDict[val] = timeUnitNames[idx]
+        
+        trialIds = get_list_from_nested_array(sessdata.trialIds)
+        trialStartTimes = get_list_from_nested_array(sessdata.trialStartTimes)
+        trialTimeUnit = get_one_from_nested_array(sessdata.trialTimeUnit)
+        trialTypeMat = sessdata.trialTypeMat
+        trialTypeStr = get_list_from_nested_array(sessdata.trialTypeStr)
+        
+        trialPropertiesHash = sessdata.trialPropertiesHash[0,0]
+        descr = get_list_from_nested_array(trialPropertiesHash.descr)
+        keyNames = get_list_from_nested_array(trialPropertiesHash.keyNames)
+        value = trialPropertiesHash.value
+        polePos = np.array(get_list_from_nested_array(value[0,0])) # this is in microstep
+        polePos = polePos * 0.0992 # convert to micron here  (0.0992 microns / microstep)
+        poleInTime = np.array(get_list_from_nested_array(value[0,1]))
+        poleOutTime = get_list_from_nested_array(value[0,2])
+        lickTime = np.array(value[0,3])
+        poleTrialCondition = get_list_from_nested_array(value[0,4])
+        
+        timeSeries = sessdata.timeSeriesArrayHash[0,0]
+        
+        # Get vector of trial_ids per sample 
+        try: # get from behavioral data
+            trial_idx_vec = timeSeries.value[0,0][0,0].trial[0,:]
+        except: # in case this trialset doesn't have any behav data, get from ephys
+            trial_idx_vec = timeSeries.value[0,1][0,0].trial[0,:]
+                
+        part_key = key.copy() # this is to perserve the original key for use in the part table later
+        # form new key-values pair and insert key
+        key['trial_time_unit'] = timesUnitDict[trialTimeUnit]
+        key['n_trials'] = len(trialIds)
+        self.insert1(key)
+        print(f'Inserted trial set for session: Subject: {animal_id} - Cell: {cell} - Date: {date_of_experiment}')
+        print('Inserting trial ID: ', end="")
+        for idx, trialId in enumerate(trialIds):
+            
+            ### Debug here
+#            tmp = behav.trial[0,:]
+#            print('---')
+#            print(trialId)
+#            print( str(idx) + ' - ' + str(trialId))  
+#            print(tmp)
+            ###
+            
+            tType = trialTypeMat[:,idx]
+            tType = np.where(tType == 1)[0]
+            tType = trialTypeStr[tType.item(0)] # this relies on the metadata consistency, e.g. a trial belongs to only 1 category of trial type
+            
+            this_trial_sample_idx = np.where(trial_idx_vec == trialId)[0] #  
+            if this_trial_sample_idx.size == 0:
+                # this implementation is a safeguard against inconsistency in data formatting - e.g. "data_structure_Cell01_ANM244028_141021_JY1243_AAAA.mat" where "trial" vector is not referencing trialId
+                this_trial_sample_idx = np.where(trial_idx_vec == (idx+1))[0] #  (+1) to take in to account that the native data format is MATLAB (index starts at 1)
+            
+            # form new key-values pair for part_key and insert
+            part_key['trial_idx'] = trialId
+            part_key['trial_type'] = tType
+            part_key['pole_trial_condition'] = poleTrialCondition[idx]
+            part_key['pole_position'] = polePos[idx]
+            part_key['pole_in_time'] = poleInTime[idx]
+            part_key['pole_out_time'] = poleOutTime[idx]
+            part_key['lick_time'] = lickTime[0,idx]
+            part_key['start_sample'] = this_trial_sample_idx[0]
+            part_key['end_sample'] = this_trial_sample_idx[-1]
+            self.Trial.insert1(part_key)
+            print(f'{trialId} ',end="")
+        print('')
     
 @schema
 class BehaviorAcquisition(dj.Imported):
@@ -74,185 +231,75 @@ class BehaviorAcquisition(dj.Imported):
     -> Session
     -> reference.BehavioralType
     ---
-    behavior_sampling_rate: int
     behavior_time_stamp: longblob
     behavior_timeseries: longblob        
     """    
-    
-    def _make_tuples(self,key):
         
-        data_dir = os.path.abspath('..//NWB_Janelia_datasets//crcns_ssc5_data_HiresGutnisky2015//')
-        sess_data_dir = os.path.join(data_dir,'datafiles')
-        
-        sess_data_files = os.listdir(sess_data_dir)
-                
-        # Get the Session definition from keys
-        animal_id = key['subject_id']
-        cell = key['cell_id']
-        date_of_experiment = key['session_time']
-                
-        # Convert datetime to string format 
-        date_of_experiment = datetime.strftime(date_of_experiment,datetimeformat_ymd) # expected datetime format: yymmdd
-        
-        # Search the filenames to find a match for "this" session (based on key)
-        sess_data_file = None
-        for s in sess_data_files:
-            m1 = re.search(animal_id, s) 
-            m2 = re.search(cell, s) 
-            m3 = re.search(date_of_experiment, s) 
-            if (m1 is not None) & (m2 is not None) & (m3 is not None):
-                sess_data_file = s
-                break
-        
-        # If session not found from dataset, break
-        if sess_data_file is None:
-            print(f'Session not found! - Subject: {animal_id} - Cell: {cell} - Date: {date_of_experiment}')
-            return
-        else: print(f'Found datafile: {sess_data_file}')
-        
-        # Now read the data and start ingesting
-        matfile = sio.loadmat(os.path.join(sess_data_dir,sess_data_file), struct_as_record=False)
-        sessdata = matfile['c'][0,0]
-        
-        timeSeries = sessdata.timeSeriesArrayHash[0,0]
-        behav = timeSeries.value[0,0][0,0]
-        
-        # Make a dictionary of behavioral type and behavioral type id
-        type_ids = get_list_from_nested_array(behav.id)
-        type_names = get_list_from_nested_array(behav.idStr)
-        behav_type_dict = {}
-        for idx, val in enumerate(type_names):
-            behav_type_dict[val] = type_ids[idx]
-            
-        # find behavioral type from 'key' and extract corresponding data
-        behav_type = key['behavior_acquisition_type']
-        behavior_timeseries = behav.valueMatrix[behav_type_dict[behav_type] - 1, :] # (-1 is to take into account that MATLAB index starts at 1)
-
-        # Make a dictionary of time unit and time unit id  
-        time_unit_ids = get_list_from_nested_array(sessdata.timeUnitIds)
-        time_unit_names = get_list_from_nested_array(sessdata.timeUnitNames)
-        time_unit_dict = {}
-        for idx, val in enumerate(time_unit_ids):
-            time_unit_dict[val] = time_unit_names[idx]
-            
-        # Extract time unit from data    
-        time_unit = time_unit_dict[get_one_from_nested_array(behav.timeUnit)]
-        
-        # Extract time stamp from data and convert to 'second'
-        behavior_time_stamp = np.array(get_list_from_nested_array(behav.time)) * time_unit_convert_factor[time_unit]
-        behavior_sampling_rate = behavior_time_stamp.size / (behavior_time_stamp[-1] - behavior_time_stamp[0])
-       
-        # form new key-values pair and insert key
-        key['behavior_sampling_rate'] = behavior_sampling_rate
-        key['behavior_time_stamp'] = behavior_time_stamp
-        key['behavior_timeseries'] = behavior_timeseries
-        self.insert1(key)
-        print(f'Inserted acquired behavioral data for session: Subject: {animal_id} - Cell: {cell} - Date: {date_of_experiment}')
-    
 @schema
-class EphysAcquisition(dj.Imported):
+class ExtracellularAcquisition(dj.Imported):
     definition = """
     -> Session
     -> reference.EphysType
     ---
-    ephys_sampling_rate: int
     ephys_time_stamp: longblob
     ephys_timeseries: longblob        
     """      
-        
-    def _make_tuples(self,key):
-        
-        data_dir = os.path.abspath('..//NWB_Janelia_datasets//crcns_ssc5_data_HiresGutnisky2015//')
-        sess_data_dir = os.path.join(data_dir,'datafiles')
-        
-        sess_data_files = os.listdir(sess_data_dir)
-                
-        # Get the Session definition from keys
-        animal_id = key['subject_id']
-        cell = key['cell_id']
-        date_of_experiment = key['session_time']
-                
-        # Convert datetime to string format 
-        date_of_experiment = datetime.strftime(date_of_experiment,datetimeformat_ymd) # expected datetime format: yymmdd
-        
-        # Search the filenames to find a match for "this" session (based on key)
-        sess_data_file = None
-        for s in sess_data_files:
-            m1 = re.search(animal_id, s) 
-            m2 = re.search(cell, s) 
-            m3 = re.search(date_of_experiment, s) 
-            if (m1 is not None) & (m2 is not None) & (m3 is not None):
-                sess_data_file = s
-                break
-        
-        # If session not found from dataset, break
-        if sess_data_file is None:
-            print(f'Session not found! - Subject: {animal_id} - Cell: {cell} - Date: {date_of_experiment}')
-            return
-        else: print(f'Found datafile: {sess_data_file}')
-        
-        # Now read the data and start ingesting
-        matfile = sio.loadmat(os.path.join(sess_data_dir,sess_data_file), struct_as_record=False)
-        sessdata = matfile['c'][0,0]
-        
-        timeSeries = sessdata.timeSeriesArrayHash[0,0]
-        ephys = timeSeries.value[0,1][0,0]
-        
-        # Make a dictionary of behavioral type and behavioral type id
-        type_ids = get_list_from_nested_array(ephys.id)
-        type_names = get_list_from_nested_array(ephys.idStr)
-        ephys_type_dict = {}
-        for idx, val in enumerate(type_names):
-            ephys_type_dict[val] = type_ids[idx]
+    
+@schema
+class IntracellularAcquisition(dj.Imported):
+    definition = """
+    -> Session
+    -> reference.EphysType
+    ---
+    ephys_time_stamp: longblob
+    ephys_timeseries: longblob        
+    """     
             
-        # find behavioral type from 'key' and extract corresponding data
-        ephys_type = key['ephys_acquisition_type']
-        ephys_timeseries = ephys.valueMatrix[ephys_type_dict[ephys_type] - 1, :] # (-1 is to take into account that MATLAB index starts at 1)
-
-        # Make a dictionary of time unit and time unit id  
-        time_unit_ids = get_list_from_nested_array(sessdata.timeUnitIds)
-        time_unit_names = get_list_from_nested_array(sessdata.timeUnitNames)
-        time_unit_dict = {}
-        for idx, val in enumerate(time_unit_ids):
-            time_unit_dict[val] = time_unit_names[idx]
-            
-        # Extract time unit from data    
-        time_unit = time_unit_dict[get_one_from_nested_array(ephys.timeUnit)]
-        
-        # Extract time stamp from data and convert to 'second'
-        ephys_time_stamp = np.array(get_list_from_nested_array(ephys.time)) * time_unit_convert_factor[time_unit]
-        ephys_sampling_rate = ephys_time_stamp.size / (ephys_time_stamp[-1] - ephys_time_stamp[0])
-       
-        # form new key-values pair and insert key
-        key['ephys_sampling_rate'] = ephys_sampling_rate
-        key['ephys_time_stamp'] = ephys_time_stamp
-        key['ephys_timeseries'] = ephys_timeseries
-        self.insert1(key)
-        print(f'Inserted acquired ephys data for session: Subject: {animal_id} - Cell: {cell} - Date: {date_of_experiment}')
+@schema
+class ExperimentalStimulus(dj.Imported):
+    definition = """
+    -> Session
+    -> reference.StimType
+    ---
+    stim_time_stamp: longblob
+    stim_timeseries: longblob        
+    """      
+                
+@schema
+class TrialExtracellular(dj.Computed):
+    definition = """
+    -> ExtracellularAcquisition
+    -> TrialSet.Trial
+    ---
+    segmented_extracellular: longblob
+    """
     
+@schema
+class TrialIntracellular(dj.Computed):
+    definition = """
+    -> IntracellularAcquisition
+    -> TrialSet.Trial
+    ---
+    segmented_intracellular: longblob
+    """
     
+@schema   
+class TrialBehavior(dj.Computed):
+    definition = """
+    -> BehaviorAcquisition
+    -> TrialSet.Trial
+    ---
+    segmented_behavior: longblob
+    """
     
-    
-    
-    
-    
-    
-    
-    
-        
-#@schema
-#class TrialAcquisition(dj.Computed):
-#    definition = """
-#    -> Acquisition
-#    -> behavior.TrialSet.Trial
-#    ---
-#    
-#    """
-#    class TrialBehavior(dj.Part):
-#        definition = """
-#
-#        """
-    
+@schema
+class TrialStimulus(dj.Computed):
+    definition = """
+    -> ExperimentalStimulus
+    -> TrialSet.Trial
+    ---
+    segmented_stim: longblob
+    """
     
     
     

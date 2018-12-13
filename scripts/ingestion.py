@@ -18,12 +18,20 @@ import datajoint as dj
 
 dj.config['database.host'] = 'tutorial-db.datajoint.io' # this goes to config file as well
 
+dj.config['database.host'] = '127.0.0.1' # this goes to config file as well
+dj.config['database.user'] = 'root' # this goes to config file as well
+dj.config['database.password'] = 'simple' # this goes to config file as well
+
 import pipeline
-from pipeline import reference, subject, acquisition, behavior, ephys, action
+from pipeline import reference, subject, acquisition, behavior, ephys, action, stimulation
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(action) + dj.ERD(acquisition) + dj.ERD(behavior) + dj.ERD(ephys)
+all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(action) + dj.ERD(acquisition) + dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(stimulation)
 all_erd.save('./images/all_erd.png')
+
+sess_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition)
+sess_erd.save('./images/sess_erd.png')
+
 
 ############## INGESTION #################
 
@@ -115,7 +123,7 @@ for metadatafile in meta_data_files:
     subject.Strain.insert1(['N/A'], skip_duplicates=True)
     
     # ------------ Allele ------------
-    subject.Allele().insert1([source_strain], skip_duplicates=True)
+    subject.Allele.insert1([source_strain], skip_duplicates=True)
     
     # ------------ Animal Source ------------
     if source_identifier is None : source_identifier = 'N/A'

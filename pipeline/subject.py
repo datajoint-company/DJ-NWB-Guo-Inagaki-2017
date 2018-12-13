@@ -15,8 +15,8 @@ class Species(dj.Lookup):
     contents = [['Mus musculus']]
 
 @schema
-class Strain(dj.Lookup):
-    definition = """
+class Strain(dj.Lookup): 
+    definition = """ 
     strain: varchar(24)
     """
     contents = [['000664'],['N/A']]
@@ -32,15 +32,13 @@ class Allele(dj.Lookup):
     ]
 
 @schema
-class Subject(dj.Manual):
+class Subject(dj.Manual): # temporarily remove species, strain and animalsource
     definition = """
     subject_id: varchar(64)  # id of the subject (e.g. ANM244028)
     ---
-    -> Species
-    -> Strain
-    -> reference.AnimalSource
     sex = 'U': enum('M', 'F', 'U')
     date_of_birth = NULL: date
+    subject_description=null:   varchar(1024) 
     """
     
 @schema
@@ -49,11 +47,11 @@ class Cell(dj.Manual):
     -> Subject
     cell_id: varchar(64)
     ---
-    cell_type: enum('excitatory','inhibitory')
+    cell_type: enum('excitatory','inhibitory','N/A')
     """    
 
 @schema
-class SubjectAllele(dj.Manual):
+class Zygosity(dj.Manual):
     definition = """
     -> Subject
     -> Allele

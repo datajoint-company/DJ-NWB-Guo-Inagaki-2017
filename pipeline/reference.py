@@ -14,7 +14,7 @@ class CorticalLayer(dj.Lookup):
     contents = [['N/A'],['1'],['2'],['3'],['4'],['5'],['6'],['2/3'],['3/4'],['4/5'],['5/6']]
 
 @schema
-class BrainLocation(dj.Manual): # "dj.Manual" here because, for different session in a dataset, or across different dataset, most likely new applicable brain location will be entered. Unless we have some giant atlas/templates with all brain locations (very unlikely)
+class BrainLocation(dj.Lookup): # "dj.Manual" here because, for different session in a dataset, or across different dataset, most likely new applicable brain location will be entered. Unless we have some giant atlas/templates with all brain locations (very unlikely)
     definition = """ 
     brain_location: varchar(32)
     brain_subregion = 'N/A' : varchar(32)
@@ -23,9 +23,12 @@ class BrainLocation(dj.Manual): # "dj.Manual" here because, for different sessio
     brain_location_full_name = 'N/A' : varchar(128)
     """
     contents = [
+        {'brain_location':'N/A','brain_location_full_name':'N/A','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
         {'brain_location':'fastigial','brain_location_full_name':'cerebellar fastigial nucleus','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
         {'brain_location':'alm','brain_location_full_name':'anteriror lateral motor cortex','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
-        {'brain_location':'barrel','brain_location_full_name':'N/A','cortical_layer': '4', 'brain_subregion':'c2'}
+        {'brain_location':'barrel','brain_location_full_name':'N/A','cortical_layer': '4', 'brain_subregion':'c2'},
+        {'brain_location':'vm/val','brain_location_full_name':'ventral medial/ventral anterior-lateral','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
+        {'brain_location':'trn','brain_location_full_name':'thalamic reticular nucleus','cortical_layer': 'N/A', 'brain_subregion':'N/A'}
     ]
 
 @schema
@@ -96,7 +99,20 @@ class WhiskerConfig(dj.Lookup):
     whisker_config: varchar(32)
     """
     contents = [['full'], ['C2']]
-        
+       
+@schema
+class TrialType(dj.Lookup):
+    definition = """
+    trial_type: varchar(64)
+    """
+    contents = [
+            ['Hit'],
+            ['Miss'],
+            ['CR'],
+            ['FA'],
+            ['Stimtrials']
+            ]    
+    
 @schema
 class BehavioralType(dj.Lookup):
     definition = """
@@ -123,5 +139,21 @@ class EphysType(dj.Lookup):
     """    
     contents = [
             ['voltage'],
-            ['spike'],
+            ['spike']
             ]       
+    
+@schema
+class StimType(dj.Lookup):
+    definition = """
+    stimulus_type: varchar(64)
+    """    
+    contents = [
+            ['photo_stim'],
+            ['current_injection']
+            ]       
+    
+    
+    
+    
+    
+    
