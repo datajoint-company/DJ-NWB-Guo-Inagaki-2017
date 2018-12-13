@@ -22,55 +22,31 @@ class ExperimentType(dj.Lookup):
     contents = [
         ['behavior'], ['extracelluar'], ['photostim']
     ]
-    
-@schema
-class IntracellularInfo(dj.Manual):
-    definition = """ Table containing information relating to the intracelluar recording (e.g. cell info)
-    cell_id: varchar(64)
-    ---
-    cell_type: enum('excitatory','inhibitory','N/A')
-    -> RecordingLocation
-    """    
-    contents = [
-        {'cell_id':'N/A','cell_type':'N/A',
-         'brain_location':'N/A','brain_location_full_name':'N/A',
-         'cortical_layer': 'N/A', 'brain_subregion':'N/A'}
-    ]
-    
-@schema
-class ExtracellularInfo(dj.Manual):
-    definition = """ Table containing information relating to the extracelluar recording (e.g. location)
-    ec_id: varchar(64)
-    ---
-    -> RecordingLocation
-    """    
-    contents = [
-        {'ec_id':'N/A',
-         'brain_location':'N/A','brain_location_full_name':'N/A',
-         'cortical_layer': 'N/A', 'brain_subregion':'N/A'}
-    ]
 
 @schema 
-class RecordingLocation(dj.Manual): 
-    definition = """ 
+class ActionLocation(dj.Manual): 
+    definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
     -> reference.BrainLocation
-    recording_depth=null: float # depth in um    
+    -> reference.CoordinateReference
+    coordinate_ap: float    # in mm, anterior positive, posterior negative 
+    coordinate_ml: float    # in mm, always postive, number larger when more lateral
+    coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
     """
-
-@schema
-class PhotoStim(dj.Manual):
-    definition = """
-    photo_stim_id: int
-    ---
-    photo_stim_wavelength: int
-    photo_stim_method: enum('fiber', 'laser')
-    -> reference.BrainLocation.proj(photo_stim_location="brain_location")
-    -> reference.Hemisphere.proj(photo_stim_hemisphere="hemisphere")
-    -> reference.CoordinateReference.proj(photo_stim_coordinate_ref="coordinate_ref")
-    photo_stim_coordinate_ap: float    # in mm, anterior positive, posterior negative 
-    photo_stim_coordinate_ml: float    # in mm, always postive, number larger when more lateral
-    photo_stim_coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
-    """
+    
+#@schema
+#class PhotoStim(dj.Manual):
+#    definition = """
+#    photo_stim_id: int
+#    ---
+#    photo_stim_wavelength: int
+#    photo_stim_method: enum('fiber', 'laser')
+#    -> reference.BrainLocation.proj(photo_stim_location="brain_location")
+#    -> reference.Hemisphere.proj(photo_stim_hemisphere="hemisphere")
+#    -> reference.CoordinateReference.proj(photo_stim_coordinate_ref="coordinate_ref")
+#    photo_stim_coordinate_ap: float    # in mm, anterior positive, posterior negative 
+#    photo_stim_coordinate_ml: float    # in mm, always postive, number larger when more lateral
+#    photo_stim_coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
+#    """
 
 @schema
 class Session(dj.Manual):
@@ -78,8 +54,6 @@ class Session(dj.Manual):
     -> subject.Subject
     session_time: datetime    # session time
     ---
-    -> ExtracellularInfo
-    -> IntracellularInfo
     session_directory = "": varchar(256)
     session_note = "" : varchar(256) 
     """
@@ -95,6 +69,38 @@ class Session(dj.Manual):
         -> master
         -> ExperimentType
         """
+
+@schema
+class IntracellularInfo(dj.Manual):
+    definition = """ # Table containing information relating to the intracelluar recording (e.g. cell info)
+    -> Session
+    cell_id: varchar(64)
+    ---
+    cell_type: enum('excitatory','inhibitory','N/A')
+    -> ActionLocation
+    -> reference.Device
+    """    
+    
+@schema
+class ExtracellularInfo(dj.Manual):
+    definition = """ # Table containing information relating to the extracelluar recording (e.g. location)
+    -> Session
+    ec_id: varchar(64)
+    ---
+    -> ActionLocation
+    -> reference.Device
+    """    
+    
+@schema
+class StimulationInfo(dj.Manual):
+    definition = """ # Table containing information relating to the stimulatiom (stimulation type (optical or electrical), location, device)
+    -> Session
+    stim_id: varchar(64)
+    ---
+    stim_type: enum('optical','electrical')
+    -> ActionLocation
+    -> reference.Device
+    """    
 
 @schema
 class TrialSet(dj.Imported):
@@ -238,28 +244,27 @@ class BehaviorAcquisition(dj.Imported):
 @schema
 class ExtracellularAcquisition(dj.Imported):
     definition = """
-    -> Session
-    -> reference.EphysType
+    -> ExtracellularInfo
+    -> reference.ExtracellularType
     ---
-    ephys_time_stamp: longblob
-    ephys_timeseries: longblob        
+    ec_time_stamp: longblob
+    ec_timeseries: longblob        
     """      
     
 @schema
 class IntracellularAcquisition(dj.Imported):
     definition = """
-    -> Session
-    -> reference.EphysType
+    -> IntracellularInfo
+    -> reference.IntracellularType
     ---
-    ephys_time_stamp: longblob
-    ephys_timeseries: longblob        
+    ic_time_stamp: longblob
+    ic_timeseries: longblob        
     """     
             
 @schema
 class ExperimentalStimulus(dj.Imported):
     definition = """
-    -> Session
-    -> reference.StimType
+    -> StimulationInfo
     ---
     stim_time_stamp: longblob
     stim_timeseries: longblob        

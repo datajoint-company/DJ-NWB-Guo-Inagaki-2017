@@ -36,20 +36,14 @@ class Subject(dj.Manual): # temporarily remove species, strain and animalsource
     definition = """
     subject_id: varchar(64)  # id of the subject (e.g. ANM244028)
     ---
+    -> Species
+    -> Strain
+    -> reference.AnimalSource
     sex = 'U': enum('M', 'F', 'U')
     date_of_birth = NULL: date
     subject_description=null:   varchar(1024) 
     """
     
-@schema
-class Cell(dj.Manual):
-    definition = """
-    -> Subject
-    cell_id: varchar(64)
-    ---
-    cell_type: enum('excitatory','inhibitory','N/A')
-    """    
-
 @schema
 class Zygosity(dj.Manual):
     definition = """
@@ -58,8 +52,7 @@ class Zygosity(dj.Manual):
     ---
     zygosity:  enum('Homozygous', 'Heterozygous', 'Negative', 'Unknown')
     """
-    
-    
+
     
     
     

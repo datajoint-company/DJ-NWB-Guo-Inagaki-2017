@@ -4,6 +4,7 @@ from datetime import datetime
 # datetime format - should probably read this from a config file and not hard coded here
 datetimeformat_ymd = '%y%m%d'
 datetimeformat_ydm = '%y%d%m'
+datetimeformat_ymdhms = '%Y-%m-%d %H:%M:%S'
 
 time_unit_convert_factor = {
         'millisecond': 10e-3,
@@ -47,3 +48,7 @@ def extract_datetime(datetime_str):
             except: 
                 print(f'Session Date error at {datetime_str}') # let's hope this doesn't happen
                 return None
+
+def parse_prefix(line):
+    cover = len(datetime.now().strftime(datetimeformat_ymdhms))
+    return datetime.strptime(line[:cover], datetimeformat_ymdhms)

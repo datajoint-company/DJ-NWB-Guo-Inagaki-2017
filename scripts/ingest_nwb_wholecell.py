@@ -15,7 +15,16 @@ import numpy as np
 import re
 
 import datajoint as dj
-from pipeline import reference, subject, acquisition, behavior, ephys, action, stimulation
+from pipeline import reference, subject, acquisition #, behavior, ephys, action, stimulation
+from pipeline.helper_functions import parse_prefix
+
+# Merge all schema and generate the overall ERD (then save in "/images")
+all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(action) + dj.ERD(acquisition) + dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(stimulation)
+all_erd.save('./images/all_erd.png')
+
+# Merge all schema and generate the overall ERD (then save in "/images")
+core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition) 
+core_erd.save('./images/core_erd.png')
 
 
 ############## Dataset #################
@@ -35,19 +44,89 @@ sex = nwb['general']['subject']['sex'].value.decode('UTF-8')
 species = nwb['general']['subject']['species'].value.decode('UTF-8')
 weight = nwb['general']['subject']['weight'].value.decode('UTF-8')
 
-splittedstr = re.split('\n|Animal Strain: |Animal source: |Date of birth: ',desc)
+splittedstr = re.split('Date of birth: ',desc)
+dob = splittedstr[-1]
+dob = datetime.strptime(str(dob),'%Y-%m-%d') 
+sex = sex[0].upper()
+
+if dob is not None:
+    subject.Subject.insert1(
+            {'subject_id':subject_id,
+             'sex': sex,
+             'date_of_birth': dob,
+             'subject_description':desc}, 
+             skip_duplicates=True)
+else: 
+    subject.Subject.insert1(
+            {'subject_id':subject_id,
+             'sex': sex,
+             'subject_description':desc}, 
+             skip_duplicates=True)
+
+# ==================== session ====================
+    # experiment_description
+experiment_description = nwb['general']['experiment_description'].value
+    # experimenter
+experimenter = np.array(nwb['general']['experimenter'])
+    # institution
+institution = nwb['general']['institution'].value
+    # related_publications
+related_publications = nwb['general']['related_publications'].value.decode('UTF-8') 
+    # session_id
+session_id = nwb['general']['session_id'].value
+    # surgery
+surgery = nwb['general']['surgery'].value.decode('UTF-8')
+# nwb['identifier']
+identifier = nwb['identifier'].value
+# nwb['nwb_version']
+nwb_version = nwb['nwb_version'].value
+# nwb['session_description']
+session_description = nwb['session_description'].value
+# nwb['session_start_time']
+session_start_time = nwb['session_start_time'].value
+
+# --
+date_of_experiment = parse_prefix(session_start_time)
+cell_id = re.split('.nwb',session_id)[0]
+experiment_types = re.split('Experiment type: ',experiment_description)[-1]
+experiment_types = np.array(re.split(', ',experiment_types))
+
+if date_of_experiment is not None: 
+    with acquisition.Session.connection.transaction:
+        acquisition.Session.insert1(            
+                    {'subject_id':subject_id,
+                     'session_time': date_of_experiment,
+                     'session_note': session_description,
+                     'ec_id':'N/A', 'brain_location':'N/A','brain_location_full_name':'N/A','cortical_layer': 'N/A', 'brain_subregion':'N/A', 'recording_depth':0,
+                     'cell_id':cell_id,'cell_type':'N/A','brain_location':'N/A','brain_location_full_name':'N/A','cortical_layer': 'N/A', 'brain_subregion':'N/A', 'recording_depth':0,
+                     }, 
+                     skip_duplicates=True)
+        for k in np.arange(experimenter.size):
+            acquisition.Session.Experimenter.insert1(            
+                        {'subject_id':subject_id,
+                         'session_time': date_of_experiment,
+                         'experimenter': experimenter.item(k)
+                         }, 
+                         skip_duplicates=True)
+        for k in np.arange(experiment_types.size):
+            acquisition.Session.ExperimentType.insert1(            
+                        {'subject_id':subject_id,
+                         'session_time': date_of_experiment,
+                         'experiment_type': experiment_types.item(k)
+                         }, 
+                         skip_duplicates=True)
+            
+        # there is still the ExperimentType part table here...
+        print(f'\tSession created - Subject: {subject_id} - IC: {cell_id} - EC: "N/A" - Date: {date_of_experiment}')
 
 
-#  Species ------------
-subject.Species.insert1([species], skip_duplicates=True)
-#  Strain ------------
-subject.Strain.insert1(['N/A'], skip_duplicates=True)
-#  Allele ------------
-subject.Allele.insert1([source_strain], skip_duplicates=True)
-#  Animal Source ------------
-if source_identifier is None : source_identifier = 'N/A'
-reference.AnimalSource.insert1([source_identifier], skip_duplicates=True)
-
+#    -> subject.Subject
+#    session_time: datetime    # session time
+#    ---
+#    -> ExtracellularInfo
+#    -> IntracellularInfo
+#    session_directory = "": varchar(256)
+#    session_note = "" : varchar(256) 
 
 
 # nwb['file_create_date']
@@ -55,7 +134,6 @@ file_created_date = list(nwb['file_create_date'])
 
 # nwb['general']
 list(nwb['general'])
-
     # data_collection
 data_collection = nwb['general']['data_collection'].value.decode('UTF-8')
     # devices
@@ -64,12 +142,6 @@ devices = {}
 for d in list(nwb['general']['devices']):
     devices[d] = nwb['general']['devices'][d].value.decode('UTF-8')
 
-    # experiment_description
-experiment_description = nwb['general']['experiment_description'].value
-    # experimenter
-experimenter = nwb['general']['experimenter'].value
-    # institution
-institution = nwb['general']['institution'].value
     # intracellular_ephys
 list(nwb['general']['intracellular_ephys'])
 list(nwb['general']['intracellular_ephys']['whole_cell'])
@@ -96,26 +168,6 @@ for site in list(nwb['general']['optogenetics']):
     site_excitation_lambda.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
     site_location.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
 
-    # related_publications
-related_publications = nwb['general']['related_publications'].value.decode('UTF-8') 
-    # session_id
-session_id = nwb['general']['session_id'].value
-    # surgery
-surgery = nwb['general']['surgery'].value.decode('UTF-8')
-    # task_keyword
-task_keywords = list(nwb['general']['task_keyword'])
-
-# nwb['identifier']
-identifier = nwb['identifier'].value
-# nwb['nwb_version']
-nwb_version = nwb['nwb_version'].value
-# nwb['session_description']
-session_description = nwb['session_description'].value
-# nwb['session_start_time']
-#session_start_time = nwb['session_start_time'].value
-
-
-
 # nwb['acquisition']
     # nwb['acquisition']['images']
 list(nwb['acquisition']['images'])
@@ -134,6 +186,15 @@ current_injection = {
         'timestamps':np.array(nwb['acquisition']['timeseries']['current_injection']['timestamps']),
         'gain':np.array(nwb['acquisition']['timeseries']['current_injection']['gain'])
         }
+ci_desc = nwb['acquisition']['timeseries']['current_injection']['electrode']['description'].value
+ci_device = nwb['acquisition']['timeseries']['current_injection']['electrode']['device'].value
+ci_filtering = nwb['acquisition']['timeseries']['current_injection']['electrode']['filtering'].value
+ci_initial_access_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['initial_access_resistance'].value
+ci_location = nwb['acquisition']['timeseries']['current_injection']['electrode']['location'].value
+ci_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['resistance'].value
+ci_seal = nwb['acquisition']['timeseries']['current_injection']['electrode']['seal'].value
+ci_slice = nwb['acquisition']['timeseries']['current_injection']['electrode']['slice'].value
+
 lick_trace_L = {
         'data': np.array(nwb['acquisition']['timeseries']['lick_trace_L']['data']),
         'timestamps':np.array(nwb['acquisition']['timeseries']['lick_trace_L']['timestamps'])
