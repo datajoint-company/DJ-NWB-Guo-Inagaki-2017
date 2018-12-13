@@ -19,7 +19,7 @@ class Strain(dj.Lookup):
     definition = """ 
     strain: varchar(24)
     """
-    contents = [['000664'],['N/A']]
+    contents = [['B6'],['N/A']]
 
 @schema
 class Allele(dj.Lookup):

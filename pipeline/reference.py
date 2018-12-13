@@ -51,7 +51,7 @@ class Device(dj.Lookup):
     definition = """ # ideally a device-type object (electrode, laser, etc.) 
     device_name: varchar(32)
     ---
-    device_desc: varchar(1024)
+    device_desc = "": varchar(1024)
     """        
     
 @schema
@@ -59,7 +59,7 @@ class AnimalSource(dj.Lookup):
     definition = """
     animal_source: varchar(32)      # source of the animal, Jax, Charles River etc.
     """
-    contents = [['JAX'], ['Homemade']]
+    contents = [['Jackson'], ['Homemade']]
 
 @schema
 class VirusSource(dj.Lookup):

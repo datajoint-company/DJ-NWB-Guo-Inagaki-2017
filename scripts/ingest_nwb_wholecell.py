@@ -26,7 +26,6 @@ all_erd.save('./images/all_erd.png')
 core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition) 
 core_erd.save('./images/core_erd.png')
 
-
 ############## Dataset #################
 path = os.path.join('..','data','whole_cell_nwb2.0')
 fname = 'cell_20_1.nwb'
@@ -44,14 +43,32 @@ sex = nwb['general']['subject']['sex'].value.decode('UTF-8')
 species = nwb['general']['subject']['species'].value.decode('UTF-8')
 weight = nwb['general']['subject']['weight'].value.decode('UTF-8')
 
+# dob and sex
 splittedstr = re.split('Date of birth: ',desc)
 dob = splittedstr[-1]
 dob = datetime.strptime(str(dob),'%Y-%m-%d') 
 sex = sex[0].upper()
 
+# strain and source
+animal_strains = subject.Strain.fetch()
+for s in animal_strains:
+    m = re.search(s[0], desc) 
+    if (m is not None):
+        strain = s[0]
+        break
+animal_sources = reference.AnimalSource.fetch()
+for s in animal_sources:
+    m = re.search(s[0], desc) 
+    if (m is not None):
+        animal_source = s[0]
+        break
+
 if dob is not None:
     subject.Subject.insert1(
             {'subject_id':subject_id,
+             'species':species,
+             'strain':strain,
+             'animal_source':animal_source,
              'sex': sex,
              'date_of_birth': dob,
              'subject_description':desc}, 
@@ -85,9 +102,8 @@ session_description = nwb['session_description'].value
 # nwb['session_start_time']
 session_start_time = nwb['session_start_time'].value
 
-# --
+# -- session_time 
 date_of_experiment = parse_prefix(session_start_time)
-cell_id = re.split('.nwb',session_id)[0]
 experiment_types = re.split('Experiment type: ',experiment_description)[-1]
 experiment_types = np.array(re.split(', ',experiment_types))
 
@@ -96,55 +112,32 @@ if date_of_experiment is not None:
         acquisition.Session.insert1(            
                     {'subject_id':subject_id,
                      'session_time': date_of_experiment,
-                     'session_note': session_description,
-                     'ec_id':'N/A', 'brain_location':'N/A','brain_location_full_name':'N/A','cortical_layer': 'N/A', 'brain_subregion':'N/A', 'recording_depth':0,
-                     'cell_id':cell_id,'cell_type':'N/A','brain_location':'N/A','brain_location_full_name':'N/A','cortical_layer': 'N/A', 'brain_subregion':'N/A', 'recording_depth':0,
-                     }, 
-                     skip_duplicates=True)
+                     'session_note': session_description
+                     })
         for k in np.arange(experimenter.size):
             acquisition.Session.Experimenter.insert1(            
                         {'subject_id':subject_id,
                          'session_time': date_of_experiment,
                          'experimenter': experimenter.item(k)
-                         }, 
-                         skip_duplicates=True)
+                         })
         for k in np.arange(experiment_types.size):
             acquisition.Session.ExperimentType.insert1(            
                         {'subject_id':subject_id,
                          'session_time': date_of_experiment,
                          'experiment_type': experiment_types.item(k)
-                         }, 
-                         skip_duplicates=True)
-            
+                         })
         # there is still the ExperimentType part table here...
         print(f'\tSession created - Subject: {subject_id} - IC: {cell_id} - EC: "N/A" - Date: {date_of_experiment}')
 
-
-#    -> subject.Subject
-#    session_time: datetime    # session time
-#    ---
-#    -> ExtracellularInfo
-#    -> IntracellularInfo
-#    session_directory = "": varchar(256)
-#    session_note = "" : varchar(256) 
-
-
-# nwb['file_create_date']
-file_created_date = list(nwb['file_create_date'])
-
-# nwb['general']
-list(nwb['general'])
-    # data_collection
-data_collection = nwb['general']['data_collection'].value.decode('UTF-8')
-    # devices
-list(nwb['general']['devices'])
+# ==================== Intracellular ====================
+        
+        
+# -- read data - devices
 devices = {}
 for d in list(nwb['general']['devices']):
     devices[d] = nwb['general']['devices'][d].value.decode('UTF-8')
-
-    # intracellular_ephys
-list(nwb['general']['intracellular_ephys'])
-list(nwb['general']['intracellular_ephys']['whole_cell'])
+    
+# -- read data - intracellular_ephys
 ie_desc = nwb['general']['intracellular_ephys']['whole_cell']['description'].value
 ie_device = nwb['general']['intracellular_ephys']['whole_cell']['device'].value
 ie_filtering = nwb['general']['intracellular_ephys']['whole_cell']['filtering'].value
@@ -154,19 +147,132 @@ ie_resistance = nwb['general']['intracellular_ephys']['whole_cell']['resistance'
 ie_seal = nwb['general']['intracellular_ephys']['whole_cell']['seal'].value
 ie_slice = nwb['general']['intracellular_ephys']['whole_cell']['slice'].value
 
-    # lab
-lab = nwb['general']['lab'].value
-    # optogenetics
-list(nwb['general']['optogenetics'])
+splittedstr = re.split(', |mm ',ie_location)
+coord_ap_ml_dv = [float(splittedstr[0]),float(splittedstr[2]),float(splittedstr[4])] # make sure this is in mm
+
+# -- BrainLocation
+brain_region = splittedstr[-1]
+hemi = 'left' # this whole study is on left hemi
+reference.BrainLocation.insert1(
+        {'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi})
+
+# -- ActionLocation
+coordinate_ref = 'lambda' # double check!!
+acquisition.ActionLocation.insert1(
+        {'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi,
+         'coordinate_ref': coordinate_ref,
+         'coordinate_ap':coord_ap_ml_dv[0],
+         'coordinate_ml':coord_ap_ml_dv[1],
+         'coordinate_dv':coord_ap_ml_dv[2]})
+
+# -- Device
+reference.Device.insert1({'device_name':ie_device})
+
+# -- IntracellularInfo
+cell_id = re.split('.nwb',session_id)[0]
+acquisition.IntracellularInfo.insert1(
+        {'subject_id':subject_id,
+         'session_time': date_of_experiment,
+         'cell_id':cell_id,
+         'cell_type':'N/A',
+         'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi,
+         'coordinate_ref': coordinate_ref,
+         'coordinate_ap':coord_ap_ml_dv[0],
+         'coordinate_ml':coord_ap_ml_dv[1],
+         'coordinate_dv':coord_ap_ml_dv[2],
+         'device_name':ie_device})
+
+# ==================== Stimulation ====================
+
+# -- read data - optogenetics
 site_names = []
-site_desc = []
-site_excitation_lambda = []
-site_location = []
+site_descs = []
+site_excitation_lambdas = []
+site_locations = []
 for site in list(nwb['general']['optogenetics']):
     site_names.append(site)
-    site_desc.append(nwb['general']['optogenetics'][site]['description'].value.decode('UTF-8'))
-    site_excitation_lambda.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
-    site_location.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
+    site_descs.append(nwb['general']['optogenetics'][site]['description'].value.decode('UTF-8'))
+    site_excitation_lambdas.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
+    site_locations.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
+
+
+site_location = site_locations[0]
+splittedstr = re.split(', |AP-|ML-|DV-',site_location)
+coord_ap_ml_dv = [float(splittedstr[-5]),float(splittedstr[-3]),float(splittedstr[-1])] # make sure this is in mm
+
+# -- BrainLocation
+brain_region = splittedstr[0]
+hemi = 'left' # this whole study is on left hemi
+reference.BrainLocation.insert1(
+        {'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi})
+
+# -- ActionLocation
+coordinate_ref = 'lambda' # double check!!
+acquisition.ActionLocation.insert1(
+        {'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi,
+         'coordinate_ref': coordinate_ref,
+         'coordinate_ap':coord_ap_ml_dv[0],
+         'coordinate_ml':coord_ap_ml_dv[1],
+         'coordinate_dv':coord_ap_ml_dv[2]})
+
+# -- Device
+stim_device = 'laser' # could not find a more specific name from metadata 
+reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
+
+# -- StimulationInfo
+site_name = site_names[0]
+acquisition.StimulationInfo.insert1(
+        {'subject_id':subject_id,
+         'session_time': date_of_experiment,
+         'stim_id':site_name,
+         'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi,
+         'coordinate_ref': coordinate_ref,
+         'coordinate_ap':coord_ap_ml_dv[0],
+         'coordinate_ml':coord_ap_ml_dv[1],
+         'coordinate_dv':coord_ap_ml_dv[2],
+         'device_name':stim_device})
+
+
+# -- read data - electrical stimulation (current injection)
+
+
+
+
+
+
+
+
+
+#########################################################################################################
+#########################################################################################################
+# nwb['file_create_date']
+file_created_date = list(nwb['file_create_date'])
+
+# nwb['general']
+list(nwb['general'])
+    # data_collection
+data_collection = nwb['general']['data_collection'].value.decode('UTF-8')
+
+    # lab
+lab = nwb['general']['lab'].value
 
 # nwb['acquisition']
     # nwb['acquisition']['images']
