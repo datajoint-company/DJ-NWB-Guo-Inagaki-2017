@@ -1,6 +1,8 @@
 import numpy as np
 from datetime import datetime
 from . import reference
+
+
 # datetime format - should probably read this from a config file and not hard coded here
 datetimeformat_ymd = '%y%m%d'
 datetimeformat_ydm = '%y%d%m'
@@ -14,6 +16,7 @@ time_unit_convert_factor = {
         'day':86400                
         }
 
+
 def get_one_from_nested_array(nestedArray):
     if nestedArray.size == 0: return None
     unpackedVal = nestedArray
@@ -21,6 +24,7 @@ def get_one_from_nested_array(nestedArray):
         if unpackedVal.size == 0: return None
         unpackedVal = unpackedVal[0]
     return unpackedVal
+
 
 def get_list_from_nested_array(nestedArray):
     if nestedArray.size == 0: return None
@@ -33,6 +37,7 @@ def get_list_from_nested_array(nestedArray):
         except: pass
         l.append(tmp)            
     return l    
+
 
 def extract_datetime(datetime_str):
     if datetime_str is None : 
@@ -49,9 +54,11 @@ def extract_datetime(datetime_str):
                 print(f'Session Date error at {datetime_str}') # let's hope this doesn't happen
                 return None
 
+
 def parse_prefix(line):
     cover = len(datetime.now().strftime(datetimeformat_ymdhms))
     return datetime.strptime(line[:cover], datetimeformat_ymdhms)
+
 
 #def EncodeTrialType(trial_type_list):
 #    # Get trial type from db and map to dict

@@ -7,15 +7,17 @@ Created on Mon Dec  3 16:22:42 2018
 
 from datetime import datetime
 import os
+import re
+import uuid
+
 import h5py as h5
 import matplotlib.pyplot as plt
 import numpy as np
-import re
-import uuid
 
 import datajoint as dj
 from pipeline import reference, subject, acquisition #, behavior, ephys, action, stimulation
 from pipeline.helper_functions import parse_prefix
+
 
 # Merge all schema and generate the overall ERD (then save in "/images")
 #all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(action) + dj.ERD(acquisition) + dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(stimulation)

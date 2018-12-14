@@ -16,7 +16,7 @@ This repository will contain the Python 3+ code of the DataJoint data pipeline d
 ## Conversion to NWB 2.0
 This repository will contain the Python 3+ code to convert the DataJoint pipeline into NWB 2.0 format (See https://neurodatawithoutborders.github.io/)
 
-## Data Schema
+## Schema Diagram
 ![ERD of the entire data pipeline](images/core_erd.png)
 
 

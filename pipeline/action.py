@@ -6,6 +6,7 @@ from pipeline import reference, subject
 
 schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_action')
 
+
 @schema
 class Weighing(dj.Manual):
     definition =  """
@@ -15,6 +16,7 @@ class Weighing(dj.Manual):
     weight_after: float    # in grams
     """
 
+
 @schema
 class SubjectWhiskerConfig(dj.Manual):
     definition = """
@@ -22,6 +24,7 @@ class SubjectWhiskerConfig(dj.Manual):
     ---
     -> reference.WhiskerConfig
     """
+
 
 @schema
 class VirusInjection(dj.Manual):

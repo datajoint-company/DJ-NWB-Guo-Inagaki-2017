@@ -5,6 +5,7 @@ import datajoint as dj
 
 schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_reference')
 
+
 @schema
 class CorticalLayer(dj.Lookup):
     definition = """
@@ -12,12 +13,14 @@ class CorticalLayer(dj.Lookup):
     """
     contents = [['N/A'],['1'],['2'],['3'],['4'],['5'],['6'],['2/3'],['3/4'],['4/5'],['5/6']]
 
+
 @schema
 class Hemisphere(dj.Lookup):
     definition = """
     hemisphere: varchar(8)
     """
     contents = [['left'], ['right']]
+
 
 @schema
 class BrainLocation(dj.Manual): # "dj.Manual" here because, for different session in a dataset, or across different dataset, most likely new applicable brain location will be entered. Unless we have some giant atlas/templates with all brain locations (very unlikely)
@@ -38,12 +41,14 @@ class BrainLocation(dj.Manual): # "dj.Manual" here because, for different sessio
 #        {'brain_location':'trn','brain_location_full_name':'thalamic reticular nucleus','cortical_layer': 'N/A', 'brain_subregion':'N/A'}
 #    ]
 
+
 @schema
 class CoordinateReference(dj.Lookup):
     definition = """
     coordinate_ref: varchar(32)
     """
     contents = [['lambda'], ['bregma']]
+    
     
 @schema
 class Device(dj.Lookup):
@@ -53,6 +58,7 @@ class Device(dj.Lookup):
     device_desc = "": varchar(1024)
     """        
     
+    
 @schema
 class AnimalSource(dj.Lookup):
     definition = """
@@ -60,12 +66,14 @@ class AnimalSource(dj.Lookup):
     """
     contents = [['Jackson'], ['Homemade']]
 
+
 @schema
 class VirusSource(dj.Lookup):
     definition = """
     virus_source: varchar(64)
     """
     contents = [['UNC'], ['UPenn'], ['MIT'], ['Stanford'], ['Homemade']]
+
 
 @schema
 class ProbeSource(dj.Lookup):
@@ -78,6 +86,7 @@ class ProbeSource(dj.Lookup):
         ['Cambridge NeuroTech', 64],
         ['NeuroNexus', 32]
     ]
+
 
 @schema
 class Virus(dj.Lookup):
@@ -94,12 +103,14 @@ class Virus(dj.Lookup):
 #        }
 #    ]
 
+
 @schema
 class Experimenter(dj.Lookup):
     definition = """
     experimenter: varchar(64)
     """
     contents = [['Nuo Li']]
+
 
 @schema
 class WhiskerConfig(dj.Lookup):
@@ -108,6 +119,7 @@ class WhiskerConfig(dj.Lookup):
     """
     contents = [['full'], ['C2']]
        
+    
 #@schema
 #class TrialType(dj.Lookup):
 #    definition = """ # An internal lookup table to encode/decode multiple trial-type labels describing a particular trial (e.g. a trial can be 'No Stim', 'Lick L trial' and 'Incorrect L')
@@ -128,7 +140,8 @@ class WhiskerConfig(dj.Lookup):
 #            ['Correct L',9],
 #            ['Correct R',10]
 #            ]  
-#    
+    
+
 @schema
 class BehavioralType(dj.Lookup):
     definition = """
@@ -148,6 +161,7 @@ class BehavioralType(dj.Lookup):
             ['beam_break_times']
             ]
     
+    
 @schema
 class ExtracellularType(dj.Lookup):
     definition = """
@@ -157,6 +171,7 @@ class ExtracellularType(dj.Lookup):
             ['voltage'],
             ['spike']
             ]   
+
 
 @schema
 class IntracellularType(dj.Lookup):

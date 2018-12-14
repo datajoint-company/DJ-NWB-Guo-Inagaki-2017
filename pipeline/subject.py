@@ -14,12 +14,14 @@ class Species(dj.Lookup):
     """
     contents = [['Mus musculus']]
 
+
 @schema
 class Strain(dj.Lookup): 
     definition = """ 
     strain: varchar(24)
     """
     contents = [['B6'],['N/A']]
+
 
 @schema
 class Allele(dj.Lookup):
@@ -30,6 +32,7 @@ class Allele(dj.Lookup):
         ['L7-cre'],
         ['rosa26-lsl-ChR2-YFP']
     ]
+
 
 @schema
 class Subject(dj.Manual): # temporarily remove species, strain and animalsource
@@ -43,6 +46,7 @@ class Subject(dj.Manual): # temporarily remove species, strain and animalsource
     date_of_birth = NULL: date
     subject_description=null:   varchar(1024) 
     """
+    
     
 @schema
 class Zygosity(dj.Manual):

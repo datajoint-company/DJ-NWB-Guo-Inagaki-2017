@@ -4,6 +4,7 @@ Schema of aquisition information.
 import re
 import os
 from datetime import datetime
+
 import numpy as np
 import scipy.io as sio
 import datajoint as dj
@@ -12,6 +13,7 @@ import h5py as h5
 from . import reference, subject, behavior, helper_functions
 
 schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_acquisition')
+
 
 @schema
 class ExperimentType(dj.Lookup):
@@ -22,6 +24,7 @@ class ExperimentType(dj.Lookup):
         ['behavior'], ['extracelluar'], ['photostim']
     ]
 
+
 @schema 
 class ActionLocation(dj.Manual): 
     definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
@@ -31,6 +34,7 @@ class ActionLocation(dj.Manual):
     coordinate_ml: float    # in mm, always postive, number larger when more lateral
     coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
     """
+    
     
 #@schema
 #class PhotoStim(dj.Manual):
@@ -46,6 +50,7 @@ class ActionLocation(dj.Manual):
 #    photo_stim_coordinate_ml: float    # in mm, always postive, number larger when more lateral
 #    photo_stim_coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
 #    """
+
 
 @schema
 class Session(dj.Manual):
@@ -69,6 +74,7 @@ class Session(dj.Manual):
         -> ExperimentType
         """
 
+
 @schema
 class IntracellularInfo(dj.Manual):
     definition = """ # Table containing information relating to the intracelluar recording (e.g. cell info)
@@ -80,6 +86,7 @@ class IntracellularInfo(dj.Manual):
     -> reference.Device
     """    
     
+    
 @schema
 class ExtracellularInfo(dj.Manual):
     definition = """ # Table containing information relating to the extracelluar recording (e.g. location)
@@ -89,6 +96,7 @@ class ExtracellularInfo(dj.Manual):
     -> ActionLocation
     -> reference.Device
     """    
+    
     
 @schema
 class StimulationInfo(dj.Manual):
@@ -101,6 +109,7 @@ class StimulationInfo(dj.Manual):
     -> reference.Device
     """    
 
+
 @schema
 class TrialSet(dj.Imported):
     definition = """
@@ -108,6 +117,7 @@ class TrialSet(dj.Imported):
     ---
     n_trials: int # total number of trials
     """
+    
     class Trial(dj.Part):
         definition = """
         -> master
@@ -120,13 +130,14 @@ class TrialSet(dj.Imported):
         start_time: float               # start time of this trial, with respect to starting point of this session
         stop_time: float                # end time of this trial, with respect to starting point of this session
         """
+        
     class TrialLabels(dj.Part):
         definition = """
         -> master.Trial
         trial_type_label: varchar(32)  # label for this trial (e.g. 'No stim', 'Good', 'Bad', 'Lick Left')
         """
 
-    def _make_tuples(self,key):
+    def make(self,key):
         
         ############## Dataset #################
         sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
@@ -233,6 +244,7 @@ class TrialSet(dj.Imported):
                 trial_labels.append(trial_type_string.flatten()[i].item(0).decode('UTF-8')) # 2brmv 
         print('')
     
+    
 @schema
 class BehaviorAcquisition(dj.Imported):
     definition = """
@@ -242,7 +254,8 @@ class BehaviorAcquisition(dj.Imported):
     behavior_time_stamp: longblob
     behavior_timeseries: longblob        
     """    
-        
+      
+    
 @schema
 class ExtracellularAcquisition(dj.Imported):
     definition = """
@@ -253,6 +266,7 @@ class ExtracellularAcquisition(dj.Imported):
     ec_timeseries: longblob        
     """      
     
+    
 @schema
 class IntracellularAcquisition(dj.Imported):
     definition = """
@@ -262,7 +276,8 @@ class IntracellularAcquisition(dj.Imported):
     ic_time_stamp: longblob
     ic_timeseries: longblob        
     """     
-            
+       
+     
 @schema
 class ExperimentalStimulus(dj.Imported):
     definition = """
@@ -271,7 +286,8 @@ class ExperimentalStimulus(dj.Imported):
     stim_time_stamp: longblob
     stim_timeseries: longblob        
     """      
-                
+            
+    
 @schema
 class TrialExtracellular(dj.Computed):
     definition = """
@@ -280,6 +296,7 @@ class TrialExtracellular(dj.Computed):
     ---
     segmented_extracellular: longblob
     """
+    
     
 @schema
 class TrialIntracellular(dj.Computed):
@@ -290,6 +307,7 @@ class TrialIntracellular(dj.Computed):
     segmented_intracellular: longblob
     """
     
+    
 @schema   
 class TrialBehavior(dj.Computed):
     definition = """
@@ -298,6 +316,7 @@ class TrialBehavior(dj.Computed):
     ---
     segmented_behavior: longblob
     """
+    
     
 @schema
 class TrialStimulus(dj.Computed):
