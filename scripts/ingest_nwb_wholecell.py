@@ -30,7 +30,14 @@ path = os.path.join('..','data','whole_cell_nwb2.0')
 fnames = os.listdir(path)
 
 for fname in fnames:
-    nwb = h5.File(os.path.join(path,fname), 'r')
+    try:
+        nwb = h5.File(os.path.join(path,fname), 'r')
+        print(f'File loaded: {fname}')
+    except:
+        print('=================================')
+        print(f'!!! ERROR LOADING FILE: {fname}')   
+        print('=================================')
+        continue
     
     ############################ METADATA ############################
     
@@ -108,27 +115,32 @@ for fname in fnames:
     experiment_types = re.split('Experiment type: ',experiment_description)[-1]
     experiment_types = np.array(re.split(', ',experiment_types))
     
+    for k in np.arange(experimenter.size):
+        reference.Experimenter.insert1({'experimenter': experimenter.item(k)},skip_duplicates=True)
+    for k in np.arange(experiment_types.size):
+        acquisition.ExperimentType.insert1({'experiment_type': experiment_types.item(k)},skip_duplicates=True)
+
     if date_of_experiment is not None: 
         with acquisition.Session.connection.transaction:
             acquisition.Session.insert1(            
                         {'subject_id':subject_id,
                          'session_time': date_of_experiment,
                          'session_note': session_description
-                         })
+                         },skip_duplicates=True)
             for k in np.arange(experimenter.size):
                 acquisition.Session.Experimenter.insert1(            
                             {'subject_id':subject_id,
                              'session_time': date_of_experiment,
                              'experimenter': experimenter.item(k)
-                             })
+                             },skip_duplicates=True)
             for k in np.arange(experiment_types.size):
                 acquisition.Session.ExperimentType.insert1(            
                             {'subject_id':subject_id,
                              'session_time': date_of_experiment,
                              'experiment_type': experiment_types.item(k)
-                             })
+                             },skip_duplicates=True)
             # there is still the ExperimentType part table here...
-            print(f'\tSession created - Subject: {subject_id} - IC: {cell_id} - EC: "N/A" - Date: {date_of_experiment}')
+            print(f'\tSession created - Subject: {subject_id} - Date: {date_of_experiment}')
     
     # ==================== Intracellular ====================
             
@@ -157,7 +169,7 @@ for fname in fnames:
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
-             'hemisphere': hemi})
+             'hemisphere': hemi},skip_duplicates=True)
     
     # -- ActionLocation
     coordinate_ref = 'lambda' # double check!!
@@ -169,11 +181,11 @@ for fname in fnames:
              'coordinate_ref': coordinate_ref,
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2]})
+             'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
     
     # -- Device
     stim_device = ie_device
-    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
+    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
     
     # -- IntracellularInfo
     cell_id = re.split('.nwb',session_id)[0]
@@ -190,7 +202,7 @@ for fname in fnames:
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
              'coordinate_dv':coord_ap_ml_dv[2],
-             'device_name':ie_device})
+             'device_name':ie_device},skip_duplicates=True)
     
     # ==================== Stimulation ====================
     
@@ -217,7 +229,7 @@ for fname in fnames:
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
-             'hemisphere': hemi})
+             'hemisphere': hemi},skip_duplicates=True)
     
     # -- ActionLocation
     coordinate_ref = 'lambda' # double check!!
@@ -229,11 +241,11 @@ for fname in fnames:
              'coordinate_ref': coordinate_ref,
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2]})
+             'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
     
     # -- Device
     stim_device = 'laser' # hard-coded here..., could not find a more specific name from metadata 
-    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
+    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
     
     # -- StimulationInfo
     stim_type = 'optical'
@@ -251,7 +263,7 @@ for fname in fnames:
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
              'coordinate_dv':coord_ap_ml_dv[2],
-             'device_name':stim_device})
+             'device_name':stim_device},skip_duplicates=True)
     
     # -- read data - electrical stimulation (current injection)
             
@@ -274,7 +286,7 @@ for fname in fnames:
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
-             'hemisphere': hemi})
+             'hemisphere': hemi},skip_duplicates=True)
     
     # -- ActionLocation
     coordinate_ref = 'lambda' # double check!!
@@ -286,11 +298,11 @@ for fname in fnames:
              'coordinate_ref': coordinate_ref,
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2]})
+             'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
     
     # -- Device
     stim_device = ci_device
-    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
+    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
     
     # -- StimulationInfo
     stim_id = str(uuid.uuid1()) # unfortunately there isn't any value for identification of a current injection stimulation, so UUID is used here. However this is not consistent with the photostimulation
@@ -308,7 +320,7 @@ for fname in fnames:
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
              'coordinate_dv':coord_ap_ml_dv[2],
-             'device_name':stim_device})
+             'device_name':stim_device},skip_duplicates=True)
     
     
 

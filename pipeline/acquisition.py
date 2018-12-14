@@ -140,7 +140,11 @@ class TrialSet(dj.Imported):
         sess_data_file = None
         nwb = None
         for s in sess_data_files:
-            temp_nwb = h5.File(os.path.join(sess_data_dir,s), 'r')
+            try:
+                temp_nwb = h5.File(os.path.join(sess_data_dir,s), 'r')
+            except:
+                print(f'!!! error load file: {s} when populating trials')   
+                continue
             # read subject_id out of this file
             subject_id = temp_nwb['general']['subject']['subject_id'].value.decode('UTF-8')
             # -- session_time 
