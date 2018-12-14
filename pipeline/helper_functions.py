@@ -1,6 +1,6 @@
 import numpy as np
 from datetime import datetime
-
+from . import reference
 # datetime format - should probably read this from a config file and not hard coded here
 datetimeformat_ymd = '%y%m%d'
 datetimeformat_ydm = '%y%d%m'
@@ -52,3 +52,41 @@ def extract_datetime(datetime_str):
 def parse_prefix(line):
     cover = len(datetime.now().strftime(datetimeformat_ymdhms))
     return datetime.strptime(line[:cover], datetimeformat_ymdhms)
+
+#def EncodeTrialType(trial_type_list):
+#    # Get trial type from db and map to dict
+#    trial_types = reference.TrialType.fetch()
+#    trial_type_keys = {}
+#    for tr in trial_types:
+#        trial_type_keys[tr[0]] = tr[1]
+#    # Read applicable trial type from input and form a on/off 0/1 array
+#    key_array = np.zeros((len(trial_type_keys)))
+#    for t in trial_type_list:
+#        key_array[trial_type_keys[t]] = 1
+#    # Convert to a string
+#    trial_type_str_array = ''
+#    for k in key_array:
+#        trial_type_str_array += str(int(k))
+#    return trial_type_str_array
+#    
+#def DecodeTrialType(trial_type_str_array):
+#    # Get trial type from db and map to dict
+#    trial_types = reference.TrialType.fetch()
+#    trial_type_keys = {}
+#    for tr in trial_types:
+#        trial_type_keys[str(tr[1])] = tr[0]
+#    # Read 0/1 code from input and decode to trial type
+#    trial_type_list = []
+#    for idx, v in enumerate(trial_type_str_array):
+#        if v == '1':
+#            trial_type_list.append(trial_type_keys[str(idx)])
+#    return trial_type_list
+
+
+
+
+
+
+
+
+

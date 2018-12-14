@@ -6,21 +6,20 @@ Created on Mon Dec  3 16:22:42 2018
 """
 
 from datetime import datetime
-from dateutil.tz import tzlocal
 import os
-from pynwb import NWBFile, NWBHDF5IO
 import h5py as h5
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+import uuid
 
 import datajoint as dj
 from pipeline import reference, subject, acquisition #, behavior, ephys, action, stimulation
 from pipeline.helper_functions import parse_prefix
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(action) + dj.ERD(acquisition) + dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(stimulation)
-all_erd.save('./images/all_erd.png')
+#all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(action) + dj.ERD(acquisition) + dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(stimulation)
+#all_erd.save('./images/all_erd.png')
 
 # Merge all schema and generate the overall ERD (then save in "/images")
 core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition) 
@@ -131,7 +130,6 @@ if date_of_experiment is not None:
 
 # ==================== Intracellular ====================
         
-        
 # -- read data - devices
 devices = {}
 for d in list(nwb['general']['devices']):
@@ -172,7 +170,8 @@ acquisition.ActionLocation.insert1(
          'coordinate_dv':coord_ap_ml_dv[2]})
 
 # -- Device
-reference.Device.insert1({'device_name':ie_device})
+stim_device = ie_device
+reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
 
 # -- IntracellularInfo
 cell_id = re.split('.nwb',session_id)[0]
@@ -194,19 +193,19 @@ acquisition.IntracellularInfo.insert1(
 # ==================== Stimulation ====================
 
 # -- read data - optogenetics
-site_names = []
-site_descs = []
-site_excitation_lambdas = []
-site_locations = []
+opto_site_names = []
+opto_site_descs = []
+opto_excitation_lambdas = []
+opto_locations = []
 for site in list(nwb['general']['optogenetics']):
-    site_names.append(site)
-    site_descs.append(nwb['general']['optogenetics'][site]['description'].value.decode('UTF-8'))
-    site_excitation_lambdas.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
-    site_locations.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
+    opto_site_names.append(site)
+    opto_site_descs.append(nwb['general']['optogenetics'][site]['description'].value.decode('UTF-8'))
+    opto_excitation_lambdas.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
+    opto_locations.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
 
 
-site_location = site_locations[0]
-splittedstr = re.split(', |AP-|ML-|DV-',site_location)
+opto_location = opto_locations[0]
+splittedstr = re.split(', |AP-|ML-|DV-',opto_location)
 coord_ap_ml_dv = [float(splittedstr[-5]),float(splittedstr[-3]),float(splittedstr[-1])] # make sure this is in mm
 
 # -- BrainLocation
@@ -231,15 +230,17 @@ acquisition.ActionLocation.insert1(
          'coordinate_dv':coord_ap_ml_dv[2]})
 
 # -- Device
-stim_device = 'laser' # could not find a more specific name from metadata 
+stim_device = 'laser' # hard-coded here..., could not find a more specific name from metadata 
 reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
 
 # -- StimulationInfo
-site_name = site_names[0]
+stim_type = 'optical'
+opto_site_name = opto_site_names[0]
 acquisition.StimulationInfo.insert1(
         {'subject_id':subject_id,
          'session_time': date_of_experiment,
-         'stim_id':site_name,
+         'stim_id':opto_site_name,
+         'stim_type':stim_type,
          'brain_region': brain_region,
          'brain_subregion':'N/A',
          'cortical_layer': 'N/A',
@@ -250,10 +251,62 @@ acquisition.StimulationInfo.insert1(
          'coordinate_dv':coord_ap_ml_dv[2],
          'device_name':stim_device})
 
-
 # -- read data - electrical stimulation (current injection)
+        
+ci_desc = nwb['acquisition']['timeseries']['current_injection']['electrode']['description'].value
+ci_device = nwb['acquisition']['timeseries']['current_injection']['electrode']['device'].value
+ci_filtering = nwb['acquisition']['timeseries']['current_injection']['electrode']['filtering'].value
+ci_initial_access_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['initial_access_resistance'].value
+ci_location = nwb['acquisition']['timeseries']['current_injection']['electrode']['location'].value
+ci_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['resistance'].value
+ci_seal = nwb['acquisition']['timeseries']['current_injection']['electrode']['seal'].value
+ci_slice = nwb['acquisition']['timeseries']['current_injection']['electrode']['slice'].value
 
+splittedstr = re.split(', |mm ',ci_location)
+coord_ap_ml_dv = [float(splittedstr[0]),float(splittedstr[2]),float(splittedstr[4])] # make sure this is in mm
 
+# -- BrainLocation
+brain_region = splittedstr[-1]
+hemi = 'left' # this whole study is on left hemi
+reference.BrainLocation.insert1(
+        {'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi})
+
+# -- ActionLocation
+coordinate_ref = 'lambda' # double check!!
+acquisition.ActionLocation.insert1(
+        {'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi,
+         'coordinate_ref': coordinate_ref,
+         'coordinate_ap':coord_ap_ml_dv[0],
+         'coordinate_ml':coord_ap_ml_dv[1],
+         'coordinate_dv':coord_ap_ml_dv[2]})
+
+# -- Device
+stim_device = ci_device
+reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]})
+
+# -- StimulationInfo
+stim_id = str(uuid.uuid1()) # unfortunately there isn't any value for identification of a current injection stimulation, so UUID is used here. However this is not consistent with the photostimulation
+stim_type = 'electrical'
+acquisition.StimulationInfo.insert1(
+        {'subject_id':subject_id,
+         'session_time': date_of_experiment,
+         'stim_id':opto_site_name,
+         'stim_type':stim_type,
+         'brain_region': brain_region,
+         'brain_subregion':'N/A',
+         'cortical_layer': 'N/A',
+         'hemisphere': hemi,
+         'coordinate_ref': coordinate_ref,
+         'coordinate_ap':coord_ap_ml_dv[0],
+         'coordinate_ml':coord_ap_ml_dv[1],
+         'coordinate_dv':coord_ap_ml_dv[2],
+         'device_name':stim_device})
 
 
 
@@ -287,20 +340,10 @@ membrane_potential = {
         'timestamps':np.array(nwb['acquisition']['timeseries']['membrane_potential']['timestamps'])
         }
 current_injection = {
-        'electrode': np.array(nwb['acquisition']['timeseries']['current_injection']['electrode']),
         'data': np.array(nwb['acquisition']['timeseries']['current_injection']['data']),
         'timestamps':np.array(nwb['acquisition']['timeseries']['current_injection']['timestamps']),
         'gain':np.array(nwb['acquisition']['timeseries']['current_injection']['gain'])
         }
-ci_desc = nwb['acquisition']['timeseries']['current_injection']['electrode']['description'].value
-ci_device = nwb['acquisition']['timeseries']['current_injection']['electrode']['device'].value
-ci_filtering = nwb['acquisition']['timeseries']['current_injection']['electrode']['filtering'].value
-ci_initial_access_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['initial_access_resistance'].value
-ci_location = nwb['acquisition']['timeseries']['current_injection']['electrode']['location'].value
-ci_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['resistance'].value
-ci_seal = nwb['acquisition']['timeseries']['current_injection']['electrode']['seal'].value
-ci_slice = nwb['acquisition']['timeseries']['current_injection']['electrode']['slice'].value
-
 lick_trace_L = {
         'data': np.array(nwb['acquisition']['timeseries']['lick_trace_L']['data']),
         'timestamps':np.array(nwb['acquisition']['timeseries']['lick_trace_L']['timestamps'])
@@ -309,6 +352,12 @@ lick_trace_R = {
         'data': np.array(nwb['acquisition']['timeseries']['lick_trace_R']['data']),
         'timestamps':np.array(nwb['acquisition']['timeseries']['lick_trace_R']['timestamps'])
         }
+
+# some quick plotting for inspection
+plt.plot(membrane_potential['timestamps'],membrane_potential['data'])
+plt.show()
+plt.plot(current_injection['timestamps'],current_injection['data'])
+plt.show()
 
 # nwb['analysis']
 list(nwb['analysis'])
@@ -319,7 +368,6 @@ membrane_potential_wo_spike = {
         'timestamps':np.array(nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['timestamps']),
         'num_samples':np.array(nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['num_samples'])
         }
-
 good_trials = np.array(nwb['analysis']['good_trials'])
 trial_type_string = np.array(nwb['analysis']['trial_type_string'])
 trial_start_times = np.array(nwb['analysis']['trial_start_times'])
@@ -367,19 +415,31 @@ pole_out = {
         'timestamps':np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
         }
 
+# some quick plotting for inspection
+plt.plot(cue_end['timestamps'],cue_end['data'],'.')
+plt.show()
+plt.plot(cue_start['timestamps'],cue_start['data'],'.')
+plt.show()
+plt.plot(pole_in['timestamps'],pole_in['data'],'.')
+plt.show()
+plt.plot(pole_out['timestamps'],pole_out['data'],'.')
+plt.show()
 
 
-
-
-
-
-
-
-
-
-
-
-
+# plot all raw acquisition data
+plt.subplot(611)
+plt.plot(membrane_potential['timestamps'],membrane_potential['data'])
+plt.subplot(612)
+plt.plot(current_injection['timestamps'],current_injection['data'])
+plt.subplot(613)
+plt.plot(photostimulus['timestamps'],photostimulus['data'])
+plt.subplot(614)
+plt.plot(lick_trace_L['timestamps'],lick_trace_L['data'])
+plt.subplot(615)
+plt.plot(lick_trace_R['timestamps'],lick_trace_R['data'])
+plt.subplot(616)
+plt.plot(membrane_potential_wo_spike['timestamps'],membrane_potential_wo_spike['data'])
+plt.show()
 
 
 

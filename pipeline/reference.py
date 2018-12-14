@@ -111,16 +111,24 @@ class WhiskerConfig(dj.Lookup):
        
 @schema
 class TrialType(dj.Lookup):
-    definition = """
+    definition = """ # An internal lookup table to encode/decode multiple trial-type labels describing a particular trial (e.g. a trial can be 'No Stim', 'Lick L trial' and 'Incorrect L')
     trial_type: varchar(64)
+    ---
+    trial_type_code: int
     """
     contents = [
-            ['Hit'],
-            ['Miss'],
-            ['CR'],
-            ['FA'],
-            ['Stimtrials']
-            ]    
+            ['No Stim',0],
+            ['Stim',1],
+            ['Lick R trial',2],
+            ['Lick L trial',3],
+            ['Stim trials',4],
+            ['No response',5],
+            ['Early lick',6],
+            ['Incorrect L',7],
+            ['Incorrect R',8],
+            ['Correct L',9],
+            ['Correct R',10]
+            ]  
     
 @schema
 class BehavioralType(dj.Lookup):
