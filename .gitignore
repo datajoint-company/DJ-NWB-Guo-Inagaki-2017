@@ -122,3 +122,5 @@ data/*
 
 # others
 clear_things_up.txt
+./script/scratchpaper.py
+
