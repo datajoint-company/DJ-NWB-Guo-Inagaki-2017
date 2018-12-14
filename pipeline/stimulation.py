@@ -9,7 +9,7 @@ import scipy.io as sio
 import datajoint as dj
 from . import reference
 
-schema = dj.schema('ttngu207_stimulation',locals())
+schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_stimulation')
 
 @schema
 class PhotoStimType(dj.Lookup):

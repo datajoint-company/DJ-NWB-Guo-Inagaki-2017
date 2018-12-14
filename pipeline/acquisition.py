@@ -11,7 +11,7 @@ import h5py as h5
 
 from . import reference, subject, behavior, helper_functions
 
-schema = dj.schema('ttngu207_acquisition',locals())
+schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_acquisition')
 
 @schema
 class ExperimentType(dj.Lookup):

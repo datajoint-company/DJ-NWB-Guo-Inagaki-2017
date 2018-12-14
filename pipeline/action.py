@@ -4,7 +4,7 @@ Schema of session information.
 import datajoint as dj
 from pipeline import reference, subject
 
-schema = dj.schema('ttngu207_action',locals())
+schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_action')
 
 @schema
 class Weighing(dj.Manual):

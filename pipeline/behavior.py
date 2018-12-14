@@ -10,8 +10,8 @@ import datajoint as dj
 from . import acquisition, reference
 from .helper_functions import get_one_from_nested_array, get_list_from_nested_array, datetimeformat_ydm, datetimeformat_ymd
 
-schema = dj.schema('ttngu207_behavior',locals())
-        
+schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_behavior')
+       
 
 
 

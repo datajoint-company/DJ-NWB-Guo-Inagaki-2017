@@ -4,7 +4,7 @@ Data pipeline for Guo, Inagaki et al., 2017 from Svoboda Lab.
 This study revealed the thalamic neurons exhibited selective persistent delay activity that predicted movement direction, which is similar to the anterior lateral motor cortex (ALM). This data pipeline contains the ephys and behavior data, and their corresponding analysis that replicate the figures in the paper.
 
 This project presents a DataJoint pipeline design for the data accompanying the paper
-> Zengcai V. Guo, Hidehiko K. Inagaki, Kayvon Daie, Shaul Druckmann, Charles R. Gerfen & Karel Svoboda. "Maintenance of persistent activity in a frontal thalamocortical loop" (2018) Nature
+> Zengcai V. Guo, Hidehiko K. Inagaki, Kayvon Daie, Shaul Druckmann, Charles R. Gerfen & Karel Svoboda. "Maintenance of persistent activity in a frontal thalamocortical loop" (2017) Nature
 
 https://dx.doi.org/10.1038/nature22324
 

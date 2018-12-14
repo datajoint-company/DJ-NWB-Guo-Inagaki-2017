@@ -4,7 +4,7 @@ Schema of subject information.
 import datajoint as dj
 from . import reference
 
-schema = dj.schema('ttngu207_subject',locals())
+schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_subject')
 
 
 @schema

@@ -3,8 +3,7 @@ Schema of subject information.
 '''
 import datajoint as dj
 
-schema = dj.schema('ttngu207_reference',locals())
-
+schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_reference')
 
 @schema
 class CorticalLayer(dj.Lookup):
