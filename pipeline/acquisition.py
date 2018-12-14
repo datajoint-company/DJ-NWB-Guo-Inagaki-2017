@@ -30,9 +30,9 @@ class ActionLocation(dj.Manual):
     definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
     -> reference.BrainLocation
     -> reference.CoordinateReference
-    coordinate_ap: float    # in mm, anterior positive, posterior negative 
-    coordinate_ml: float    # in mm, always postive, number larger when more lateral
-    coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
+    coordinate_ap: decimal    # in mm, anterior positive, posterior negative 
+    coordinate_ml: decimal    # in mm, always postive, number larger when more lateral
+    coordinate_dv: decimal    # in mm, always postive, number larger when more ventral (deeper)
     """
     
     
@@ -79,7 +79,7 @@ class Session(dj.Manual):
 class IntracellularInfo(dj.Manual):
     definition = """ # Table containing information relating to the intracelluar recording (e.g. cell info)
     -> Session
-    cell_id: varchar(64)
+    cell_id: varchar(36) # a string identifying the cell in which this intracellular recording is concerning
     ---
     cell_type: enum('excitatory','inhibitory','N/A')
     -> ActionLocation
@@ -91,7 +91,7 @@ class IntracellularInfo(dj.Manual):
 class ExtracellularInfo(dj.Manual):
     definition = """ # Table containing information relating to the extracelluar recording (e.g. location)
     -> Session
-    ec_id: varchar(64)
+    ec_id: varchar(36) # extracellular_id: a string uniquely identify this extracellular recording routine of this recording session (there might be multiple extracellular recording in 1 recording session, at different location for example)
     ---
     -> ActionLocation
     -> reference.Device
@@ -102,7 +102,7 @@ class ExtracellularInfo(dj.Manual):
 class StimulationInfo(dj.Manual):
     definition = """ # Table containing information relating to the stimulatiom (stimulation type (optical or electrical), location, device)
     -> Session
-    stim_id: varchar(64)
+    stim_id: varchar(36) # stimulation_id: a string uniquely identify this stimulation routine of this recording session (there might be multiple stimulation of the same or different type (phototim or electrical) in 1 recording session)
     ---
     stim_type: enum('optical','electrical')
     -> ActionLocation
@@ -121,7 +121,7 @@ class TrialSet(dj.Imported):
     class Trial(dj.Part):
         definition = """
         -> master
-        trial_id: varchar(32)
+        trial_id: varchar(36)           # unique id of this trial in this trial set
         ---
         cue_start_time: float           # cue onset of this trial, with respect to this trial's start time
         cue_end_time: float             # cue end of this trial, with respect to this trial's start time
