@@ -24,7 +24,7 @@ from pipeline.helper_functions import parse_prefix
 #all_erd.save('./images/all_erd.png')
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition) 
+core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition)
 core_erd.save('./images/core_erd.png')
 
 ############## Dataset #################

@@ -131,10 +131,14 @@ class TrialSet(dj.Imported):
         stop_time: float                # end time of this trial, with respect to starting point of this session
         """
         
-    class TrialLabels(dj.Part):
+    class TrialInfo(dj.Part):
         definition = """
         -> master.Trial
-        trial_type_label: varchar(32)  # label for this trial (e.g. 'No stim', 'Good', 'Bad', 'Lick Left')
+        ---
+        trial_type: enum('Lick L trial','Lick R trial') # the experimental type of this trial, e.g. Lick Left vs Lick Right
+        trial_stim_status: enum('Stim','No stim') # is this trial a Stimulation or No stimulation trial
+        trial_status: enum('good','bad') # the good/bad status of this trial
+        trial_response: enum('correct','incorrect','no response', 'early lick') # the behavioral response of this subject of this trial - correct/incorrect with respect to the trial type
         """
 
     def make(self,key):
@@ -196,9 +200,6 @@ class TrialSet(dj.Imported):
         pole_in_times = np.array(nwb['stimulus']['presentation']['pole_in']['timestamps'])
         pole_out_times = np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
                 
-        # this is to perserve the original key for use in the part table later
-        trial_partkey = key.copy() 
-        triallabel_partkey = key.copy() 
         # form new key-values pair and insert key
         key['n_trials'] = len(trial_names)
         self.insert1(key)
@@ -207,41 +208,34 @@ class TrialSet(dj.Imported):
         
         # loop through each trial and insert
         for idx, trialId in enumerate(trial_names):
-            trial_partkey['trial_id'] = trialId
-            triallabel_partkey['trial_id'] = trialId
+            key['trial_id'] = trialId
             # -- start/stop time
-            trial_partkey['start_time'] = start_times[idx]
-            trial_partkey['stop_time'] = stop_times[idx]
+            key['start_time'] = start_times[idx]
+            key['stop_time'] = stop_times[idx]
             # -- events timing
-            trial_partkey['cue_start_time'] = cue_start_times[idx]
-            trial_partkey['cue_end_time'] = cue_end_times[idx]
-            trial_partkey['pole_in_time'] = pole_in_times[idx]
-            trial_partkey['pole_out_time'] = pole_out_times[idx]            
+            key['cue_start_time'] = cue_start_times[idx]
+            key['cue_end_time'] = cue_end_times[idx]
+            key['pole_in_time'] = pole_in_times[idx]
+            key['pole_out_time'] = pole_out_times[idx]            
             # form new key-values pair for trial_partkey and insert
-            self.Trial.insert1(trial_partkey)
+            self.Trial.insert1(key, ignore_extra_fields=True)
             print(f'{trialId} ',end="")
-
-            # ======== Now add 'trial type labels' to the TrialLabels part table ====
-            trial_labels = []  # 2brmv 
-            # - good/bad trial (nwb['analysis']['good_trials'])
-            if good_trials.flatten()[idx] == 1: 
-                triallabel_partkey['trial_type_label'] = 'good trial'
-                self.TrialLabels.insert1(triallabel_partkey)
-                trial_labels.append('good trial') # 2brmv 
-            elif good_trials.flatten()[idx] == 0: 
-                triallabel_partkey['trial_type_label'] = 'bad trial'
-                self.TrialLabels.insert1(triallabel_partkey)
-                trial_labels.append('bad trial') # 2brmv 
-            # -- trial description (nwb['epochs'][trial]['description'])
-            for d in re.split(', ',trial_descs[idx]):
-                triallabel_partkey['trial_type_label'] = d
-                self.TrialLabels.insert1(triallabel_partkey)
-                trial_labels.append(d) # 2brmv 
-            # -- trial_type_string (nwb['analysis']['trial_type_string'])
-            for i in  np.where(trial_type_mat[idx,:] == 1):
-                triallabel_partkey['trial_type_label'] = trial_type_string.flatten()[i].item(0).decode('UTF-8')
-                self.TrialLabels.insert1(triallabel_partkey)
-                trial_labels.append(trial_type_string.flatten()[i].item(0).decode('UTF-8')) # 2brmv 
+            # ======== Now add trial descriptors to the TrialInfo part table ====
+            # - good/bad trial_status (nwb['analysis']['good_trials'])
+            key['trial_status'] = 'good' if good_trials.flatten()[idx] == 1 else 'bad'
+            # - trial_type and trial_stim_status (nwb['epochs'][trial]['description']) 
+            key['trial_type'], key['trial_stim_status'] =  re.split(', ',trial_descs[idx])
+            # - trial_response (nwb['analysis']['trial_type_string'])
+            # note, the last type_string value is duplicated info of "stim"/"no stim" above, so ignore it here (hence the [idx,:-1])
+            match_idx = np.where(trial_type_mat[idx,:-1] == 1)
+            trial_response =  trial_type_string.flatten()[match_idx].item(0).decode('UTF-8')
+            if re.search('correct',trial_response.lower()) is not None:
+                trial_response = 'correct'
+            elif re.search('incorrect',trial_response.lower()) is not None:
+                trial_response = 'incorrect'
+            key['trial_response'] = trial_response.lower()
+            # insert
+            self.TrialInfo.insert1(key, ignore_extra_fields=True)
         print('')
     
     
