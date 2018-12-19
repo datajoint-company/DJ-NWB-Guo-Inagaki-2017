@@ -325,11 +325,5 @@ for fname in fnames:
              'device_name':stim_device},skip_duplicates=True)
     
     
-
-
-
-
-
-
-
-
+    # -- finish manual ingestion
+    nwb.close()

@@ -14,34 +14,3 @@ from .helper_functions import get_one_from_nested_array, get_list_from_nested_ar
 
 schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_behavior')
        
-
-
-
-
-
-        
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-   
-    
-    

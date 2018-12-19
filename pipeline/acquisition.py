@@ -76,25 +76,23 @@ class Session(dj.Manual):
 
 
 @schema
-class IntracellularInfo(dj.Manual):
+class Cell(dj.Manual):
     definition = """ # Table containing information relating to the intracelluar recording (e.g. cell info)
     -> Session
     cell_id: varchar(36) # a string identifying the cell in which this intracellular recording is concerning
     ---
     cell_type: enum('excitatory','inhibitory','N/A')
     -> ActionLocation
-    -> reference.Device
     """    
     
     
 @schema
-class ExtracellularInfo(dj.Manual):
+class Probe(dj.Manual):
     definition = """ # Table containing information relating to the extracelluar recording (e.g. location)
     -> Session
-    ec_id: varchar(36) # extracellular_id: a string uniquely identify this extracellular recording routine of this recording session (there might be multiple extracellular recording in 1 recording session, at different location for example)
+    probe_id: varchar(36) # a string uniquely identify the probe for extracellular recording, it is likely that multiple probes recording multiple extracellular traces
     ---
     -> ActionLocation
-    -> reference.Device
     """    
     
     
@@ -102,11 +100,10 @@ class ExtracellularInfo(dj.Manual):
 class StimulationInfo(dj.Manual):
     definition = """ # Table containing information relating to the stimulatiom (stimulation type (optical or electrical), location, device)
     -> Session
-    stim_id: varchar(36) # stimulation_id: a string uniquely identify this stimulation routine of this recording session (there might be multiple stimulation of the same or different type (phototim or electrical) in 1 recording session)
+    stim_datetime: varchar(36) # the time of performing this stimulation, in the scenario of multiple stimulations per session
     ---
     stim_type: enum('optical','electrical')
     -> ActionLocation
-    -> reference.Device
     """    
 
 
@@ -135,10 +132,10 @@ class TrialSet(dj.Imported):
         definition = """
         -> master.Trial
         ---
-        trial_type: enum('Lick L trial','Lick R trial') # the experimental type of this trial, e.g. Lick Left vs Lick Right
-        trial_stim_status: enum('Stim','No stim') # is this trial a Stimulation or No stimulation trial
-        trial_status: enum('good','bad') # the good/bad status of this trial
-        trial_response: enum('correct','incorrect','no response', 'early lick') # the behavioral response of this subject of this trial - correct/incorrect with respect to the trial type
+        -> reference.TrialType
+        -> reference.TrialResponse
+        trial_stim_present: bool # is this trial a Stimulation or No stimulation trial
+        trial_is_good: bool # is this a good or bad trial
         """
 
     def make(self,key):
@@ -199,7 +196,8 @@ class TrialSet(dj.Imported):
         cue_end_times = np.array(nwb['stimulus']['presentation']['cue_end']['timestamps'])
         pole_in_times = np.array(nwb['stimulus']['presentation']['pole_in']['timestamps'])
         pole_out_times = np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
-                
+        nwb.close()
+        
         # form new key-values pair and insert key
         key['n_trials'] = len(trial_names)
         self.insert1(key)
@@ -222,9 +220,12 @@ class TrialSet(dj.Imported):
             print(f'{trialId} ',end="")
             # ======== Now add trial descriptors to the TrialInfo part table ====
             # - good/bad trial_status (nwb['analysis']['good_trials'])
-            key['trial_status'] = 'good' if good_trials.flatten()[idx] == 1 else 'bad'
-            # - trial_type and trial_stim_status (nwb['epochs'][trial]['description']) 
-            key['trial_type'], key['trial_stim_status'] =  re.split(', ',trial_descs[idx])
+            key['trial_is_good'] = True if good_trials.flatten()[idx] == 1 else False
+            # - trial_type and trial_stim_present (nwb['epochs'][trial]['description']) 
+            trial_type, trial_stim_present =  re.split(', ',trial_descs[idx])
+            trial_type_choices = {'lick l trial':'lick left','lick r trial':'lick right'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
+            key['trial_type'] = trial_type_choices.get(trial_type.lower(),'N/A')
+            key['trial_stim_present'] = True if trial_stim_present == 'Stim' else False
             # - trial_response (nwb['analysis']['trial_type_string'])
             # note, the last type_string value is duplicated info of "stim"/"no stim" above, so ignore it here (hence the [idx,:-1])
             match_idx = np.where(trial_type_mat[idx,:-1] == 1)
@@ -253,7 +254,7 @@ class BehaviorAcquisition(dj.Imported):
 @schema
 class ExtracellularAcquisition(dj.Imported):
     definition = """
-    -> ExtracellularInfo
+    -> Probe
     -> reference.ExtracellularType
     ---
     ec_time_stamp: longblob
@@ -264,7 +265,7 @@ class ExtracellularAcquisition(dj.Imported):
 @schema
 class IntracellularAcquisition(dj.Imported):
     definition = """
-    -> IntracellularInfo
+    -> Cell
     -> reference.IntracellularType
     ---
     ic_time_stamp: longblob
@@ -322,54 +323,3 @@ class TrialStimulus(dj.Computed):
     """
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-        
-        
-        
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

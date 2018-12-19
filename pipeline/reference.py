@@ -11,7 +11,7 @@ class CorticalLayer(dj.Lookup):
     definition = """
     cortical_layer : varchar(8) # layer within cortex
     """
-    contents = [['N/A'],['1'],['2'],['3'],['4'],['5'],['6'],['2/3'],['3/4'],['4/5'],['5/6']]
+    contents = zip(['N/A','1','2','3','4','5','6','2/3','3/4','4/5','5/6'])
 
 
 @schema
@@ -19,7 +19,7 @@ class Hemisphere(dj.Lookup):
     definition = """
     hemisphere: varchar(8)
     """
-    contents = [['left'], ['right']]
+    contents = zip(['left','right'])
 
 
 @schema
@@ -47,7 +47,7 @@ class CoordinateReference(dj.Lookup):
     definition = """
     coordinate_ref: varchar(32)
     """
-    contents = [['lambda'], ['bregma']]
+    contents = zip(['lambda','bregma'])
     
     
 @schema
@@ -64,7 +64,7 @@ class AnimalSource(dj.Lookup):
     definition = """
     animal_source: varchar(32)      # source of the animal, Jax, Charles River etc.
     """
-    contents = [['Jackson'], ['Homemade']]
+    contents = zip(['Jackson','Homemade'])
 
 
 @schema
@@ -72,7 +72,7 @@ class VirusSource(dj.Lookup):
     definition = """
     virus_source: varchar(64)
     """
-    contents = [['UNC'], ['UPenn'], ['MIT'], ['Stanford'], ['Homemade']]
+    contents = zip(['UNC','UPenn','MIT','Stanford','Homemade'])
 
 
 @schema
@@ -117,73 +117,21 @@ class WhiskerConfig(dj.Lookup):
     definition = """
     whisker_config: varchar(32)
     """
-    contents = [['full'], ['C2']]
+    contents = zip(['full','C2'])
        
     
-#@schema
-#class TrialType(dj.Lookup):
-#    definition = """ # An internal lookup table to encode/decode multiple trial-type labels describing a particular trial (e.g. a trial can be 'No Stim', 'Lick L trial' and 'Incorrect L')
-#    trial_type: varchar(64)
-#    ---
-#    trial_type_code: int
-#    """
-#    contents = [
-#            ['No Stim',0],
-#            ['Stim',1],
-#            ['Lick R trial',2],
-#            ['Lick L trial',3],
-#            ['Stim trials',4],
-#            ['No response',5],
-#            ['Early lick',6],
-#            ['Incorrect L',7],
-#            ['Incorrect R',8],
-#            ['Correct L',9],
-#            ['Correct R',10]
-#            ]  
-    
-
 @schema
-class BehavioralType(dj.Lookup):
-    definition = """
-    behavior_acquisition_type: varchar(64)
-    """    
-    contents = [
-            ['thetaAtBase'],
-            ['ampitude'],
-            ['phase'],
-            ['setpoint'],
-            ['thetafilt'],
-            ['deltaKappa'],
-            ['touch_onset'],
-            ['touch_offset'],
-            ['distance_to_pole'],
-            ['pole_available'],
-            ['beam_break_times']
-            ]
+class TrialType(dj.Lookup):
+    definition = """ # # The experimental type of this trial, e.g. Lick Left vs Lick Right
+    trial_type: varchar(32)
+    """
+    contents = zip(['lick left','lick right','N/A'])
     
     
 @schema
-class ExtracellularType(dj.Lookup):
-    definition = """
-    extracellular_acquisition_type: varchar(64)
-    """    
-    contents = [
-            ['voltage'],
-            ['spike']
-            ]   
+class TrialResponse(dj.Lookup):
+    definition = """ # The behavioral response of this subject of this trial - correct/incorrect with respect to the trial type
+    trial_response: varchar(32)
+    """
+    contents = zip(['correct','incorrect','no response','early lick','N/A'])
 
-
-@schema
-class IntracellularType(dj.Lookup):
-    definition = """
-    intracellular_acquisition_type: varchar(64)
-    """    
-    contents = [
-            ['membrane_potential'],
-            ['membrane_potential_wo_spike']
-            ]      
-
-    
-    
-    
-    
