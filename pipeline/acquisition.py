@@ -292,14 +292,14 @@ class TrialExtracellular(dj.Computed):
     
     class Voltage(dj.Part):
         definition = """
-        -> ExtracellularAcquisition.Voltage
+        -> master
         ---
         segmented_voltage: longblob   
         """
     
     class Spike(dj.Part):
         definition = """
-        -> ExtracellularAcquisition.Spike
+        -> master
         ---
         segmented_spike: longblob   
         """      
@@ -314,7 +314,7 @@ class TrialIntracellular(dj.Computed):
     
     class MembranePotential(dj.Part):
         definition = """
-        -> IntracellularAcquisition.MembranePotential
+        -> master
         ---
         segmented_mp: longblob   
         segmented_mp_wo_spike: longblob
@@ -322,7 +322,7 @@ class TrialIntracellular(dj.Computed):
     
     class CurrentInjection(dj.Part):
         definition = """
-        -> IntracellularAcquisition.CurrentInjection
+        -> master
         ---
         segmented_current_injection: longblob
         """
@@ -339,7 +339,7 @@ class TrialBehavior(dj.Computed):
     
     class LickTrace(dj.Part):
         definition = """
-        -> BehaviorAcquisition.LickTrace
+        -> master
         ---
         segmented_lt_left: longblob   
         segmented_lt_right: longblob

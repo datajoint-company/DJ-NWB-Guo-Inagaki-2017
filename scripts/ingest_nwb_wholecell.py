@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 import re
 import uuid
-os.chdir('..')
+
 import h5py as h5
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,7 +24,7 @@ from pipeline.helper_functions import parse_prefix
 
 # Merge all schema and generate the overall ERD (then save in "/images")
 core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition) + dj.ERD(stimulation)
-core_erd.save('./images/core_erd_v2.png')
+core_erd.save('./images/core_erd.png')
 
 ############## Dataset #################
 path = os.path.join('.','data','whole_cell_nwb2.0')
@@ -278,5 +278,30 @@ for fname in fnames:
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
+
+# -- Trial-related
+acquisition.TrialSet.populate()
+
+# -- Intracellular
+acquisition.IntracellularAcquisition.populate()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
