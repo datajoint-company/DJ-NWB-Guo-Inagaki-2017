@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import datajoint as dj
-from pipeline import reference, subject, acquisition #, behavior, ephys, action, stimulation
+from pipeline import reference, subject, acquisition, stimulation #, behavior, ephys, action
 from pipeline.helper_functions import parse_prefix
 
 

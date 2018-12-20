@@ -10,7 +10,7 @@ import scipy.io as sio
 import datajoint as dj
 import h5py as h5
 
-from . import reference, subject, behavior, helper_functions
+from . import reference, subject, helper_functions, stimulation
 
 schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_acquisition')
 
@@ -23,33 +23,6 @@ class ExperimentType(dj.Lookup):
     contents = [
         ['behavior'], ['extracelluar'], ['photostim']
     ]
-
-
-@schema 
-class ActionLocation(dj.Manual): 
-    definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
-    -> reference.BrainLocation
-    -> reference.CoordinateReference
-    coordinate_ap: decimal    # in mm, anterior positive, posterior negative 
-    coordinate_ml: decimal    # in mm, always postive, number larger when more lateral
-    coordinate_dv: decimal    # in mm, always postive, number larger when more ventral (deeper)
-    """
-    
-    
-#@schema
-#class PhotoStim(dj.Manual):
-#    definition = """
-#    photo_stim_id: int
-#    ---
-#    photo_stim_wavelength: int
-#    photo_stim_method: enum('fiber', 'laser')
-#    -> reference.BrainLocation.proj(photo_stim_location="brain_location")
-#    -> reference.Hemisphere.proj(photo_stim_hemisphere="hemisphere")
-#    -> reference.CoordinateReference.proj(photo_stim_coordinate_ref="coordinate_ref")
-#    photo_stim_coordinate_ap: float    # in mm, anterior positive, posterior negative 
-#    photo_stim_coordinate_ml: float    # in mm, always postive, number larger when more lateral
-#    photo_stim_coordinate_dv: float    # in mm, always postive, number larger when more ventral (deeper)
-#    """
 
 
 @schema
@@ -76,14 +49,74 @@ class Session(dj.Manual):
 
 
 @schema
+class BehaviorAcquisition(dj.Imported):
+    definition = """
+    -> Session
+    """    
+    
+    class LickTrace(dj.Part):
+        definition = """
+        -> master
+        ---
+        lick_trace_left: longblob   
+        lick_trace_right: longblob
+        lick_trace_time_stamps: longblob
+        """       
+
+
+@schema
+class PhotoStimulation(dj.Manual):
+    definition = """ # Table containing information relating to the stimulatiom (stimulation type (optical or electrical), location, device)
+    -> Session
+    photostim_datetime: varchar(36) # the time of performing this stimulation with respect to start time of the session, in the scenario of multiple stimulations per session
+    ---
+    -> reference.ActionLocation
+    -> stimulation.PhotoStimulationInfo
+    photostim_timeseries: longblob
+    """    
+
+
+@schema
 class Cell(dj.Manual):
-    definition = """ # Table containing information relating to the intracelluar recording (e.g. cell info)
+    definition = """ # Information relating to the Cell and the intracellular recording of this cell (e.g. location, recording device)
     -> Session
     cell_id: varchar(36) # a string identifying the cell in which this intracellular recording is concerning
     ---
     cell_type: enum('excitatory','inhibitory','N/A')
-    -> ActionLocation
+    -> reference.ActionLocation
+    -> reference.WholeCellDevice
     """    
+  
+    
+@schema
+class IntracellularAcquisition(dj.Imported):
+    definition = """ # data pertain to intracellular recording
+    -> Cell
+    """     
+    
+    class MembranePotential(dj.Part):
+        definition = """
+        -> master
+        ---
+        membrane_potential: longblob    # Membrane potential recording at this cell
+        membrane_potential_time_stamps: longblob # timestamps of membrane potential recording
+        """
+        
+    class MembranePotentialWOSpike(dj.Part):
+        definition = """ # Membrain potential without spike, derived from membrane potential recording    
+        -> master.MembranePotential
+        ---
+        mp_wo_spike: longblob # membrane potential without spike data, derived from membrane potential recording    
+        mp_wo_spike_time_stamps: longblob # timestamps of membrane potential without spike time-series
+        """       
+        
+    class CurrentInjection(dj.Part):
+        definition = """
+        -> master
+        ---
+        current_injection: longblob
+        current_injection_time_stamps: longblob        
+        """
     
     
 @schema
@@ -92,20 +125,32 @@ class Probe(dj.Manual):
     -> Session
     probe_id: varchar(36) # a string uniquely identify the probe for extracellular recording, it is likely that multiple probes recording multiple extracellular traces
     ---
-    -> ActionLocation
+    -> reference.ActionLocation
     """    
     
-    
-@schema
-class StimulationInfo(dj.Manual):
-    definition = """ # Table containing information relating to the stimulatiom (stimulation type (optical or electrical), location, device)
-    -> Session
-    stim_datetime: varchar(36) # the time of performing this stimulation, in the scenario of multiple stimulations per session
-    ---
-    stim_type: enum('optical','electrical')
-    -> ActionLocation
-    """    
 
+@schema
+class ExtracellularAcquisition(dj.Imported):
+    definition = """
+    -> Probe
+    """    
+    
+    class Voltage(dj.Part):
+        definition = """
+        -> master
+        ---
+        voltage: longblob   
+        voltage_time_stamps: longblob
+        """
+        
+    class Spike(dj.Part):
+        definition = """
+        -> master
+        ---
+        spike: longblob   
+        spike_time_stamps: longblob
+        """      
+        
 
 @schema
 class TrialSet(dj.Imported):
@@ -238,50 +283,7 @@ class TrialSet(dj.Imported):
             # insert
             self.TrialInfo.insert1(key, ignore_extra_fields=True)
         print('')
-    
-    
-@schema
-class BehaviorAcquisition(dj.Imported):
-    definition = """
-    -> Session
-    -> reference.BehavioralType
-    ---
-    behavior_time_stamp: longblob
-    behavior_timeseries: longblob        
-    """    
-      
-    
-@schema
-class ExtracellularAcquisition(dj.Imported):
-    definition = """
-    -> Probe
-    -> reference.ExtracellularType
-    ---
-    ec_time_stamp: longblob
-    ec_timeseries: longblob        
-    """      
-    
-    
-@schema
-class IntracellularAcquisition(dj.Imported):
-    definition = """
-    -> Cell
-    -> reference.IntracellularType
-    ---
-    ic_time_stamp: longblob
-    ic_timeseries: longblob        
-    """     
        
-     
-@schema
-class ExperimentalStimulus(dj.Imported):
-    definition = """
-    -> StimulationInfo
-    ---
-    stim_time_stamp: longblob
-    stim_timeseries: longblob        
-    """      
-            
     
 @schema
 class TrialExtracellular(dj.Computed):
@@ -292,15 +294,48 @@ class TrialExtracellular(dj.Computed):
     segmented_extracellular: longblob
     """
     
+    class TrialVoltage(dj.Part):
+        definition = """
+        -> ExtracellularAcquisition.Voltage
+        ---
+        segmented_voltage: longblob   
+        """
+    
+    class TrialSpike(dj.Part):
+        definition = """
+        -> ExtracellularAcquisition.Spike
+        ---
+        segmented_spike: longblob   
+        """      
+    
     
 @schema
 class TrialIntracellular(dj.Computed):
     definition = """
     -> IntracellularAcquisition
     -> TrialSet.Trial
-    ---
-    segmented_intracellular: longblob
     """
+    
+    class TrialMemPot(dj.Part):
+        definition = """
+        -> IntracellularAcquisition.MembranePotential
+        ---
+        segmented_mp: longblob    
+        """
+        
+    class TrialMemPotWOSpike(dj.Part):
+        definition = """ 
+        -> IntracellularAcquisition.MembranePotentialWOSpike
+        ---
+        segmented_mp_wo_spike: longblob     
+        """       
+    
+    class TrialCurrentInjection(dj.Part):
+        definition = """
+        -> IntracellularAcquisition.CurrentInjection
+        ---
+        segmented_current_injection: longblob
+        """
     
     
 @schema   
@@ -312,14 +347,22 @@ class TrialBehavior(dj.Computed):
     segmented_behavior: longblob
     """
     
+    class TrialLickTrace(dj.Part):
+        definition = """
+        -> BehaviorAcquisition.LickTrace
+        ---
+        segmented_lt_left: longblob   
+        segmented_lt_right: longblob
+        """   
+    
     
 @schema
-class TrialStimulus(dj.Computed):
+class TrialPhotoStimulus(dj.Computed):
     definition = """
-    -> ExperimentalStimulus
+    -> PhotoStimulation
     -> TrialSet.Trial
     ---
-    segmented_stim: longblob
+    segmented_photostim: longblob
     """
     
     

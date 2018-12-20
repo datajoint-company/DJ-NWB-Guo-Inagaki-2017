@@ -7,6 +7,15 @@ schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_reference')
 
 
 @schema
+class WholeCellDevice(dj.Lookup):
+    definition = """ # Information about the devices used for electrical stimulation
+    device_name: varchar(32)
+    ---
+    device_desc = "": varchar(1024)
+    """   
+    
+
+@schema
 class CorticalLayer(dj.Lookup):
     definition = """
     cortical_layer : varchar(8) # layer within cortex
@@ -47,18 +56,20 @@ class CoordinateReference(dj.Lookup):
     definition = """
     coordinate_ref: varchar(32)
     """
-    contents = zip(['lambda','bregma'])
+    contents = zip(['lambda','bregma'])       
     
     
-@schema
-class Device(dj.Lookup):
-    definition = """ # This table contain information about the devices used for recording, or stimulation (photo or electrical). Ideally a device-type object (electrode, laser, etc.) 
-    device_name: varchar(32)
-    ---
-    device_desc = "": varchar(1024)
-    """        
-    
-    
+@schema 
+class ActionLocation(dj.Manual): 
+    definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
+    -> BrainLocation
+    -> CoordinateReference
+    coordinate_ap: decimal    # in mm, anterior positive, posterior negative 
+    coordinate_ml: decimal    # in mm, always postive, number larger when more lateral
+    coordinate_dv: decimal    # in mm, always postive, number larger when more ventral (deeper)
+    """
+ 
+   
 @schema
 class AnimalSource(dj.Lookup):
     definition = """
