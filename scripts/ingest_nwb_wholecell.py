@@ -4,12 +4,11 @@ Created on Mon Dec  3 16:22:42 2018
 
 @author: thinh
 """
-
 from datetime import datetime
 import os
 import re
 import uuid
-
+os.chdir('..')
 import h5py as h5
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,11 +23,11 @@ from pipeline.helper_functions import parse_prefix
 #all_erd.save('./images/all_erd.png')
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition)
-core_erd.save('./images/core_erd.png')
+core_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(acquisition) + dj.ERD(stimulation)
+core_erd.save('./images/core_erd_v2.png')
 
 ############## Dataset #################
-path = os.path.join('..','data','whole_cell_nwb2.0')
+path = os.path.join('.','data','whole_cell_nwb2.0')
 fnames = os.listdir(path)
 
 for fname in fnames:
@@ -174,8 +173,8 @@ for fname in fnames:
              'hemisphere': hemi},skip_duplicates=True)
     
     # -- ActionLocation
-    coordinate_ref = 'lambda' # double check!!
-    acquisition.ActionLocation.insert1(
+    coordinate_ref = 'bregma' # double check!!
+    reference.ActionLocation.insert1(
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
@@ -185,13 +184,13 @@ for fname in fnames:
              'coordinate_ml':coord_ap_ml_dv[1],
              'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
     
-    # -- Device
+    # -- Whole Cell Device
     stim_device = ie_device
-    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
+    reference.WholeCellDevice.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
     
     # -- IntracellularInfo
     cell_id = re.split('.nwb',session_id)[0]
-    acquisition.IntracellularInfo.insert1(
+    acquisition.Cell.insert1(
             {'subject_id':subject_id,
              'session_time': date_of_experiment,
              'cell_id':cell_id,
@@ -205,9 +204,7 @@ for fname in fnames:
              'coordinate_ml':coord_ap_ml_dv[1],
              'coordinate_dv':coord_ap_ml_dv[2],
              'device_name':ie_device},skip_duplicates=True)
-    
-    # ==================== Stimulation ====================
-    
+        
     # -- read data - optogenetics
     opto_site_names = []
     opto_site_descs = []
@@ -218,7 +215,6 @@ for fname in fnames:
         opto_site_descs.append(nwb['general']['optogenetics'][site]['description'].value.decode('UTF-8'))
         opto_excitation_lambdas.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
         opto_locations.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
-    
     
     opto_location = opto_locations[0]
     splittedstr = re.split(', |AP-|ML-|DV-',opto_location)
@@ -234,8 +230,8 @@ for fname in fnames:
              'hemisphere': hemi},skip_duplicates=True)
     
     # -- ActionLocation
-    coordinate_ref = 'lambda' # double check!!
-    acquisition.ActionLocation.insert1(
+    coordinate_ref = 'bregma' # double check!!
+    reference.ActionLocation.insert1(
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
@@ -247,16 +243,13 @@ for fname in fnames:
     
     # -- Device
     stim_device = 'laser' # hard-coded here..., could not find a more specific name from metadata 
-    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
+    stimulation.PhotoStimDevice.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
     
     # -- StimulationInfo
-    stim_type = 'optical'
     opto_site_name = opto_site_names[0]
-    acquisition.StimulationInfo.insert1(
-            {'subject_id':subject_id,
-             'session_time': date_of_experiment,
-             'stim_id':opto_site_name,
-             'stim_type':stim_type,
+    opto_wavelength = int(re.findall("\d+", opto_excitation_lambdas[0])[0])
+    stimulation.PhotoStimulationInfo.insert1(
+            {'photo_stim_id':opto_site_name,
              'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
@@ -265,65 +258,25 @@ for fname in fnames:
              'coordinate_ap':coord_ap_ml_dv[0],
              'coordinate_ml':coord_ap_ml_dv[1],
              'coordinate_dv':coord_ap_ml_dv[2],
-             'device_name':stim_device},skip_duplicates=True)
-    
-    # -- read data - electrical stimulation (current injection)
-            
-    ci_desc = nwb['acquisition']['timeseries']['current_injection']['electrode']['description'].value
-    ci_device = nwb['acquisition']['timeseries']['current_injection']['electrode']['device'].value
-    ci_filtering = nwb['acquisition']['timeseries']['current_injection']['electrode']['filtering'].value
-    ci_initial_access_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['initial_access_resistance'].value
-    ci_location = nwb['acquisition']['timeseries']['current_injection']['electrode']['location'].value
-    ci_resistance = nwb['acquisition']['timeseries']['current_injection']['electrode']['resistance'].value
-    ci_seal = nwb['acquisition']['timeseries']['current_injection']['electrode']['seal'].value
-    ci_slice = nwb['acquisition']['timeseries']['current_injection']['electrode']['slice'].value
-    
-    splittedstr = re.split(', |mm ',ci_location)
-    coord_ap_ml_dv = [float(splittedstr[0]),float(splittedstr[2]),float(splittedstr[4])] # make sure this is in mm
-    
-    # -- BrainLocation
-    brain_region = splittedstr[-1]
-    hemi = 'left' # this whole study is on left hemi
-    reference.BrainLocation.insert1(
-            {'brain_region': brain_region,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi},skip_duplicates=True)
-    
-    # -- ActionLocation
-    coordinate_ref = 'lambda' # double check!!
-    acquisition.ActionLocation.insert1(
-            {'brain_region': brain_region,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi,
-             'coordinate_ref': coordinate_ref,
-             'coordinate_ap':coord_ap_ml_dv[0],
-             'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
-    
-    # -- Device
-    stim_device = ci_device
-    reference.Device.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
-    
-    # -- StimulationInfo
-    stim_id = str(uuid.uuid1()) # unfortunately there isn't any value for identification of a current injection stimulation, so UUID is used here. However this is not consistent with the photostimulation
-    stim_type = 'electrical'
-    acquisition.StimulationInfo.insert1(
+             'device_name':stim_device,
+             'photo_stim_excitation_lambdas': float(opto_wavelength),
+             'photo_stim_notes':opto_site_descs[0],},skip_duplicates=True)          
+
+    # -- PhotoStimulation 
+    # only 1 photostim per session, perform at the same time with session
+    photostim_data = np.array(nwb['stimulus']['presentation']['photostimulus']['data'])
+    photostim_timestamps = np.array(nwb['stimulus']['presentation']['photostimulus']['timestamps'])   
+    acquisition.PhotoStimulation.insert1(
             {'subject_id':subject_id,
              'session_time': date_of_experiment,
-             'stim_id':opto_site_name,
-             'stim_type':stim_type,
-             'brain_region': brain_region,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi,
-             'coordinate_ref': coordinate_ref,
-             'coordinate_ap':coord_ap_ml_dv[0],
-             'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2],
-             'device_name':stim_device},skip_duplicates=True)
-    
-    
-    # -- finish manual ingestion
+             'photostim_datetime': date_of_experiment,
+             'photo_stim_id':opto_site_name,
+             'photostim_timeseries': photostim_data,
+             'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
+
+    # -- finish manual ingestion for this file
     nwb.close()
+
+# ====================== Starting import and compute procedure ======================
+
+

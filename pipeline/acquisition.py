@@ -70,9 +70,9 @@ class PhotoStimulation(dj.Manual):
     -> Session
     photostim_datetime: varchar(36) # the time of performing this stimulation with respect to start time of the session, in the scenario of multiple stimulations per session
     ---
-    -> reference.ActionLocation
     -> stimulation.PhotoStimulationInfo
     photostim_timeseries: longblob
+    photostim_time_stamps: longblob
     """    
 
 
@@ -99,16 +99,9 @@ class IntracellularAcquisition(dj.Imported):
         -> master
         ---
         membrane_potential: longblob    # Membrane potential recording at this cell
+        membrane_potential_wo_spike: longblob # membrane potential without spike data, derived from membrane potential recording    
         membrane_potential_time_stamps: longblob # timestamps of membrane potential recording
         """
-        
-    class MembranePotentialWOSpike(dj.Part):
-        definition = """ # Membrain potential without spike, derived from membrane potential recording    
-        -> master.MembranePotential
-        ---
-        mp_wo_spike: longblob # membrane potential without spike data, derived from membrane potential recording    
-        mp_wo_spike_time_stamps: longblob # timestamps of membrane potential without spike time-series
-        """       
         
     class CurrentInjection(dj.Part):
         definition = """
@@ -117,7 +110,34 @@ class IntracellularAcquisition(dj.Imported):
         current_injection: longblob
         current_injection_time_stamps: longblob        
         """
-    
+        
+    def make(self,key):
+        ############## Dataset #################
+        sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
+                
+        # Get the Session definition from the keys of this session
+        animal_id = key['subject_id']
+        date_of_experiment = key['session_time']
+        
+        # Search the filenames to find a match for "this" session (based on key)
+        sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
+        if sess_data_file is None: 
+            return
+        nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
+        
+        #  ============= Now read the data and start ingesting =============
+        self.insert1(key)
+        print('Insert extracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
+        # -- MembranePotential
+        key['membrane_potential'] = np.array(nwb['acquisition']['timeseries']['membrane_potential']['data'])
+        key['membrane_potential_wo_spike'] = np.array(nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'])
+        key['membrane_potential_time_stamps'] = np.array(nwb['acquisition']['timeseries']['membrane_potential']['timestamps'])
+        self.MembranePotential.insert1(key, ignore_extra_fields=True)
+        # -- CurrentInjection
+        key['current_injection'] = np.array(nwb['acquisition']['timeseries']['current_injection']['data'])
+        key['current_injection_time_stamps'] = np.array(nwb['acquisition']['timeseries']['current_injection']['timestamps']),
+        self.CurrentInjection.insert1(key, ignore_extra_fields=True)
+
     
 @schema
 class Probe(dj.Manual):
@@ -184,44 +204,20 @@ class TrialSet(dj.Imported):
         """
 
     def make(self,key):
-        
         ############## Dataset #################
         sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
-        sess_data_files = os.listdir(sess_data_dir)
                 
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
-                        
+        
         # Search the filenames to find a match for "this" session (based on key)
-        sess_data_file = None
-        nwb = None
-        for s in sess_data_files:
-            try:
-                temp_nwb = h5.File(os.path.join(sess_data_dir,s), 'r')
-            except:
-                print(f'!!! error load file: {s} when populating trials')   
-                continue
-            # read subject_id out of this file
-            subject_id = temp_nwb['general']['subject']['subject_id'].value.decode('UTF-8')
-            # -- session_time 
-            session_start_time = temp_nwb['session_start_time'].value
-            session_start_time = helper_functions.parse_prefix(session_start_time)
-            # compare key with extracted info from this file
-            if (animal_id == subject_id) and (date_of_experiment == session_start_time):
-                # if true, meaning the current "nwb" variable is a match with this session
-                sess_data_file = s
-                nwb = temp_nwb # just a change of variable, no need for deep copy
-                break
-                    
-        # If session not found from dataset, break
-        if nwb is None:
-            print(f'Session not found! - Subject: {animal_id} - Date: {date_of_experiment}')
+        sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
+        if sess_data_file is None: 
             return
-        else: print(f'Found datafile: {sess_data_file}')
-        
+        nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
+                
         #  ============= Now read the data and start ingesting =============
-        
         # -- read data -- nwb['epochs']
         trial_names = []
         trial_descs = []
@@ -294,14 +290,14 @@ class TrialExtracellular(dj.Computed):
     segmented_extracellular: longblob
     """
     
-    class TrialVoltage(dj.Part):
+    class Voltage(dj.Part):
         definition = """
         -> ExtracellularAcquisition.Voltage
         ---
         segmented_voltage: longblob   
         """
     
-    class TrialSpike(dj.Part):
+    class Spike(dj.Part):
         definition = """
         -> ExtracellularAcquisition.Spike
         ---
@@ -316,21 +312,15 @@ class TrialIntracellular(dj.Computed):
     -> TrialSet.Trial
     """
     
-    class TrialMemPot(dj.Part):
+    class MembranePotential(dj.Part):
         definition = """
         -> IntracellularAcquisition.MembranePotential
         ---
-        segmented_mp: longblob    
+        segmented_mp: longblob   
+        segmented_mp_wo_spike: longblob
         """
-        
-    class TrialMemPotWOSpike(dj.Part):
-        definition = """ 
-        -> IntracellularAcquisition.MembranePotentialWOSpike
-        ---
-        segmented_mp_wo_spike: longblob     
-        """       
     
-    class TrialCurrentInjection(dj.Part):
+    class CurrentInjection(dj.Part):
         definition = """
         -> IntracellularAcquisition.CurrentInjection
         ---
@@ -347,7 +337,7 @@ class TrialBehavior(dj.Computed):
     segmented_behavior: longblob
     """
     
-    class TrialLickTrace(dj.Part):
+    class LickTrace(dj.Part):
         definition = """
         -> BehaviorAcquisition.LickTrace
         ---

@@ -41,14 +41,6 @@ class BrainLocation(dj.Manual): # "dj.Manual" here because, for different sessio
     ---
     brain_location_full_name = 'N/A' : varchar(128)
     """
-#    contents = [
-#        {'brain_location':'N/A','brain_location_full_name':'N/A','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
-#        {'brain_location':'fastigial','brain_location_full_name':'cerebellar fastigial nucleus','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
-#        {'brain_location':'alm','brain_location_full_name':'anteriror lateral motor cortex','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
-#        {'brain_location':'barrel','brain_location_full_name':'N/A','cortical_layer': '4', 'brain_subregion':'c2'},
-#        {'brain_location':'vm/val','brain_location_full_name':'ventral medial/ventral anterior-lateral','cortical_layer': 'N/A', 'brain_subregion':'N/A'},
-#        {'brain_location':'trn','brain_location_full_name':'thalamic reticular nucleus','cortical_layer': 'N/A', 'brain_subregion':'N/A'}
-#    ]
 
 
 @schema
@@ -108,11 +100,6 @@ class Virus(dj.Lookup):
     virus_lot_number="":  varchar(128)  # lot numnber of the virus
     virus_titer=null:       float     # x10^12GC/mL
     """
-#    contents = [
-#        {'virus_name': 'AAV2-hSyn-hChR2(H134R)-EYFP', 
-#         'virus_source_name': 'UNC'
-#        }
-#    ]
 
 
 @schema

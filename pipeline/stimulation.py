@@ -28,8 +28,8 @@ class PhotoStimulationInfo(dj.Manual):
    definition = """
    photo_stim_id: varchar(8)
    ---
-   -> PhotoStimDevice
    -> reference.ActionLocation
+   -> PhotoStimDevice
    photo_stim_excitation_lambdas = null:      float        # (nm) excitation wavelength
    photo_stim_method = 'laser' : enum('fiber', 'laser')
    photo_stim_period = '':                  varchar(24)  # period during the trial
@@ -39,19 +39,4 @@ class PhotoStimulationInfo(dj.Manual):
    photo_stim_shape = '':                   varchar(24)  # shape of photostim, cosine or pulsive
    photo_stim_freq = null:                    float        # in Hz, frequency of photostimulation
    photo_stim_notes = '':                varchar(128)
-   """
-#   contents = [
-#       ['0', '', 'N/A', 'N/A', '', '', '', '', 0, '', 0, 'no stimulus'],
-#       ['1', 'Fastigial', 'N/A', 'N/A', 'right', 'sample', 'contralateral', 'activation', 500, '5ms pulse', 20, ''],
-#       ['2', 'Fastigial', 'N/A', 'N/A', 'right', 'delay', 'contralateral', 'activation', 500, '5ms pulse', 20, ''],
-#       ['3', 'Dentate', 'N/A', 'N/A', 'right', 'sample', 'contralateral', 'activation', 500, '5ms pulse', 20, ''],
-#       ['4', 'Dentate', 'N/A', 'N/A', 'right', 'delay', 'contralateral', 'activation', 500, '5ms pulse', 20, ''],
-#       ['5', 'DCN', 'right', 'N/A', 'N/A', 'delay', 'contralateral', 'inhibition', 500, 'cosine', 40, ''],
-#       ['6', 'DCN', 'right', 'N/A', 'N/A', 'delay', 'contralateral', 'inhibition', 500, 'cosine', 40, ''],
-#       ['NaN','', 'N/A', 'N/A', '', '', '', '', 0, '', 0, 'stimulation configuration for other purposes, should not analyze']
-#   ]
-   
-
-
-
-
+   """  

@@ -1,5 +1,8 @@
-import numpy as np
+import os
 from datetime import datetime
+
+import h5py as h5
+
 from . import reference
 
 
@@ -15,29 +18,6 @@ time_unit_convert_factor = {
         'hour':3600,
         'day':86400                
         }
-
-
-def get_one_from_nested_array(nestedArray):
-    if nestedArray.size == 0: return None
-    unpackedVal = nestedArray
-    while unpackedVal.shape != (): 
-        if unpackedVal.size == 0: return None
-        unpackedVal = unpackedVal[0]
-    return unpackedVal
-
-
-def get_list_from_nested_array(nestedArray):
-    if nestedArray.size == 0: return None
-    unpackedVal = nestedArray
-    l = []
-    if unpackedVal.size == 0: return None
-    for j in np.arange(unpackedVal.size):
-        tmp = unpackedVal.item(j)
-        try: tmp = get_one_from_nested_array(tmp)
-        except: pass
-        l.append(tmp)            
-    return l    
-
 
 def extract_datetime(datetime_str):
     if datetime_str is None : 
@@ -60,33 +40,36 @@ def parse_prefix(line):
     return datetime.strptime(line[:cover], datetimeformat_ymdhms)
 
 
-#def EncodeTrialType(trial_type_list):
-#    # Get trial type from db and map to dict
-#    trial_types = reference.TrialType.fetch()
-#    trial_type_keys = {}
-#    for tr in trial_types:
-#        trial_type_keys[tr[0]] = tr[1]
-#    # Read applicable trial type from input and form a on/off 0/1 array
-#    key_array = np.zeros((len(trial_type_keys)))
-#    for t in trial_type_list:
-#        key_array[trial_type_keys[t]] = 1
-#    # Convert to a string
-#    trial_type_str_array = ''
-#    for k in key_array:
-#        trial_type_str_array += str(int(k))
-#    return trial_type_str_array
-#    
-#def DecodeTrialType(trial_type_str_array):
-#    # Get trial type from db and map to dict
-#    trial_types = reference.TrialType.fetch()
-#    trial_type_keys = {}
-#    for tr in trial_types:
-#        trial_type_keys[str(tr[1])] = tr[0]
-#    # Read 0/1 code from input and decode to trial type
-#    trial_type_list = []
-#    for idx, v in enumerate(trial_type_str_array):
-#        if v == '1':
-#            trial_type_list.append(trial_type_keys[str(idx)])
-#    return trial_type_list
-
-
+def find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment):
+        ############## Dataset #################
+        sess_data_files = os.listdir(sess_data_dir)
+                        
+        # Search the filenames to find a match for "this" session (based on key)
+        sess_data_file = None
+        for s in sess_data_files:
+            try:
+                temp_nwb = h5.File(os.path.join(sess_data_dir,s), 'r')
+            except:
+                print(f'!!! error load file: {s}')   
+                continue
+            # read subject_id out of this file
+            subject_id = temp_nwb['general']['subject']['subject_id'].value.decode('UTF-8')
+            # -- session_time 
+            session_start_time = temp_nwb['session_start_time'].value
+            session_start_time = parse_prefix(session_start_time)
+            # compare key with extracted info from this file
+            if (animal_id == subject_id) and (date_of_experiment == session_start_time):
+                # if true, meaning the current "nwb" variable is a match with this session
+                sess_data_file = s
+                break
+            temp_nwb.close()
+                    
+        # If session not found from dataset, break
+        if sess_data_file is None:
+            print(f'Session not found! - Subject: {animal_id} - Date: {date_of_experiment}')
+            return None
+        else: 
+            print(f'Found datafile: {sess_data_file}')
+            return sess_data_file
+        
+        
