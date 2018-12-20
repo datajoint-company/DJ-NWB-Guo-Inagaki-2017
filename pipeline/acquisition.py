@@ -62,6 +62,29 @@ class BehaviorAcquisition(dj.Imported):
         lick_trace_right: longblob
         lick_trace_time_stamps: longblob
         """       
+        
+    def make(self,key):
+        ############## Dataset #################
+        sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
+                
+        # Get the Session definition from the keys of this session
+        animal_id = key['subject_id']
+        date_of_experiment = key['session_time']
+        
+        # Search the files in filenames to find a match for "this" session (based on key)
+        sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
+        if sess_data_file is None: 
+            return
+        nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
+        
+        #  ============= Now read the data and start ingesting =============
+        self.insert1(key)
+        print('Insert extracellular data for: subject: {0} - date: {1}'.format(key['subject_id'],key['session_time']))
+        # -- MembranePotential
+        key['lick_trace_left'] = np.array(nwb['acquisition']['timeseries']['lick_trace_L']['data'])
+        key['lick_trace_right'] = np.array(nwb['acquisition']['timeseries']['lick_trace_R']['data'])
+        key['lick_trace_time_stamps'] = np.array(nwb['acquisition']['timeseries']['lick_trace_L']['timestamps'])
+        self.LickTrace.insert1(key, ignore_extra_fields=True)
 
 
 @schema
@@ -119,7 +142,7 @@ class IntracellularAcquisition(dj.Imported):
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
         
-        # Search the filenames to find a match for "this" session (based on key)
+        # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             return
@@ -127,7 +150,7 @@ class IntracellularAcquisition(dj.Imported):
         
         #  ============= Now read the data and start ingesting =============
         self.insert1(key)
-        print('Insert extracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
+        print('Insert behavioral data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
         # -- MembranePotential
         key['membrane_potential'] = np.array(nwb['acquisition']['timeseries']['membrane_potential']['data'])
         key['membrane_potential_wo_spike'] = np.array(nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'])
@@ -211,7 +234,7 @@ class TrialSet(dj.Imported):
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
         
-        # Search the filenames to find a match for "this" session (based on key)
+        # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             return
@@ -266,7 +289,7 @@ class TrialSet(dj.Imported):
             trial_type, trial_stim_present =  re.split(', ',trial_descs[idx])
             trial_type_choices = {'lick l trial':'lick left','lick r trial':'lick right'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
             key['trial_type'] = trial_type_choices.get(trial_type.lower(),'N/A')
-            key['trial_stim_present'] = True if trial_stim_present == 'Stim' else False
+            key['trial_stim_present'] = (trial_stim_present == 'Stim')
             # - trial_response (nwb['analysis']['trial_type_string'])
             # note, the last type_string value is duplicated info of "stim"/"no stim" above, so ignore it here (hence the [idx,:-1])
             match_idx = np.where(trial_type_mat[idx,:-1] == 1)
@@ -328,7 +351,7 @@ class TrialIntracellular(dj.Computed):
         """
     
     
-@schema   
+@schema     
 class TrialBehavior(dj.Computed):
     definition = """
     -> BehaviorAcquisition

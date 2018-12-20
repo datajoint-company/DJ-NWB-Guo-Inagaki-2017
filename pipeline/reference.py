@@ -56,9 +56,9 @@ class ActionLocation(dj.Manual):
     definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
     -> BrainLocation
     -> CoordinateReference
-    coordinate_ap: decimal    # in mm, anterior positive, posterior negative 
-    coordinate_ml: decimal    # in mm, always postive, number larger when more lateral
-    coordinate_dv: decimal    # in mm, always postive, number larger when more ventral (deeper)
+    coordinate_ap: decimal(4,2)    # in mm, anterior positive, posterior negative 
+    coordinate_ml: decimal(4,2)    # in mm, always postive, number larger when more lateral
+    coordinate_dv: decimal(4,2)    # in mm, always postive, number larger when more ventral (deeper)
     """
  
    

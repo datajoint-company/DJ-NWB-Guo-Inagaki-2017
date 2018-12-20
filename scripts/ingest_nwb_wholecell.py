@@ -281,10 +281,10 @@ for fname in fnames:
 
 # -- Trial-related
 acquisition.TrialSet.populate()
-
 # -- Intracellular
 acquisition.IntracellularAcquisition.populate()
-
+# -- Behavioral
+acquisition.BehaviorAcquisition.populate()
 
 
 
