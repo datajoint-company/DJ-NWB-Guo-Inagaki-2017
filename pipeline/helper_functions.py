@@ -7,38 +7,16 @@ from . import reference
 
 
 # datetime format - should probably read this from a config file and not hard coded here
-datetimeformat_ymd = '%y%m%d'
-datetimeformat_ydm = '%y%d%m'
 datetimeformat_ymdhms = '%Y-%m-%d %H:%M:%S'
-
-time_unit_convert_factor = {
-        'millisecond': 10e-3,
-        'second':1,
-        'minute':60,
-        'hour':3600,
-        'day':86400                
-        }
-
-def extract_datetime(datetime_str):
-    if datetime_str is None : 
-        return None
-    else: 
-        try: 
-            # expected datetime format: yymmdd
-            return datetime.strptime(str(datetime_str),datetimeformat_ymd) 
-        except:
-            # in case some dataset has messed up format: yyddmm
-            try:
-                return datetime.strptime(str(datetime_str),datetimeformat_ydm) 
-            except: 
-                print(f'Session Date error at {datetime_str}') # let's hope this doesn't happen
-                return None
 
 
 def parse_prefix(line):
     cover = len(datetime.now().strftime(datetimeformat_ymdhms))
-    return datetime.strptime(line[:cover], datetimeformat_ymdhms)
-
+    try:
+        return datetime.strptime(line[:cover], datetimeformat_ymdhms)
+    except Exception as e:
+        print('Error: ' + str(e) + ' - Return None')
+        return None    
 
 def find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment):
         ############## Dataset #################

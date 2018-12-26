@@ -12,7 +12,7 @@ class Species(dj.Lookup):
     definition = """
     species: varchar(24)
     """
-    contents = [['Mus musculus']]
+    contents = zip(['Mus musculus'])
 
 
 @schema
@@ -20,7 +20,22 @@ class Strain(dj.Lookup):
     definition = """ 
     strain: varchar(24)
     """
-    contents = [['B6'],['N/A']]
+    contents = zip(['C57BL6','Ai35D','N/A'])
+  
+    
+@schema
+class StrainAlias(dj.Lookup):
+    definition = """ Other animal strain names that may be used interchangeably in different studies
+    strain_alias: varchar(24)
+    ---
+    -> Strain
+    """
+    contents = [
+            ['C57BL6','B6'],
+            ['B6','B6'],
+            ['Ai35D','Ai35D'],
+            ['N/A','N/A']
+            ]
 
 
 @schema
@@ -28,10 +43,10 @@ class Allele(dj.Lookup):
     definition = """
     allele_name: varchar(128)
     """
-    contents = [
-        ['L7-cre'],
-        ['rosa26-lsl-ChR2-YFP']
-    ]
+    contents = zip(
+        ['L7-cre',
+        'rosa26-lsl-ChR2-YFP']
+    )
 
 
 @schema

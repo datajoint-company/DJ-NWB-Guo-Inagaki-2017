@@ -13,7 +13,28 @@ class WholeCellDevice(dj.Lookup):
     ---
     device_desc = "": varchar(1024)
     """   
-    
+
+
+@schema
+class Probe(dj.Lookup):
+    definition = """
+    # Description of a particular model of probe.
+    probe_name: varchar(128)      # String naming probe model
+    ---
+    channel_counts: smallint            # number of channels in the probe
+    """
+
+    class Channel(dj.Part):
+        definition = """
+        -> master
+        channel_id:         smallint     # id of a channel on the probe
+        ---
+        channel_x_pos:  float   # x position relative to the tip of the probe (um)
+        channel_y_pos:  float   # y position relative to the tip of the probe (um)
+        channel_z_pos:  float   # y position relative to the tip of the probe (um)
+        shank_id: smallint  # the shank id of this probe this channel is located on 
+        """
+
 
 @schema
 class CorticalLayer(dj.Lookup):
@@ -68,6 +89,20 @@ class AnimalSource(dj.Lookup):
     animal_source: varchar(32)      # source of the animal, Jax, Charles River etc.
     """
     contents = zip(['Jackson','Homemade'])
+
+
+@schema
+class AnimalSourceAlias(dj.Lookup):
+    definition = """
+    animal_source_alias: varchar(32)      # other names for source of the animal, Jax, Charles River etc.
+    ---
+    -> AnimalSource
+    """
+    contents = [ 
+            ['Jackson', 'Jackson'],
+            ['Homemade', 'Homemade'],
+            ['Jax', 'Jackson']
+            ]
 
 
 @schema

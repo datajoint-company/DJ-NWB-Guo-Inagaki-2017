@@ -163,18 +163,17 @@ class IntracellularAcquisition(dj.Imported):
 
     
 @schema
-class Probe(dj.Manual):
-    definition = """ # Table containing information relating to the extracelluar recording (e.g. location)
+class Extracellular(dj.Manual):
+    definition = """ # Information relating to the extracelluar recording (e.g. location, probe)
     -> Session
-    probe_id: varchar(36) # a string uniquely identify the probe for extracellular recording, it is likely that multiple probes recording multiple extracellular traces
-    ---
     -> reference.ActionLocation
+    -> reference.Probe
     """    
     
 
 @schema
 class ExtracellularAcquisition(dj.Imported):
-    definition = """
+    definition = """ # Raw extracellular recording, channel x time (e.g. LFP)
     -> Probe
     """    
     
@@ -186,13 +185,28 @@ class ExtracellularAcquisition(dj.Imported):
         voltage_time_stamps: longblob
         """
         
-    class Spike(dj.Part):
-        definition = """
+
+@schema
+class Spike(dj.Imported):
+    definition = """ 
+    -> Extracellular
+    unit_id : smallint
+    ---
+    spike_times: longblob
+    spike_type: varchar(32) # e.g. wide width, narrow width spiking
+    unit_depth_x: float
+    unit_depth_y: float
+    unit_depth_z: float
+    """
+
+    class SpikeWaveForm(dj.Part):
+        definition = """ 
         -> master
+        -> reference.Probe.Channel
         ---
-        spike: longblob   
+        spike_waveform: longblob
         spike_time_stamps: longblob
-        """      
+        """   
         
 
 @schema
@@ -200,7 +214,7 @@ class TrialSet(dj.Imported):
     definition = """
     -> Session
     ---
-    n_trials: int # total number of trials
+    trial_counts: int # total number of trials
     """
     
     class Trial(dj.Part):
@@ -208,10 +222,10 @@ class TrialSet(dj.Imported):
         -> master
         trial_id: varchar(36)           # unique id of this trial in this trial set
         ---
-        cue_start_time: float           # cue onset of this trial, with respect to this trial's start time
-        cue_end_time: float             # cue end of this trial, with respect to this trial's start time
-        pole_in_time: float             # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to trial start time
-        pole_out_time: float            # the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to trial start time
+        cue_start_time: float           # cue onset of this trial (auditory cue), with respect to this session's start time
+        cue_end_time: float             # cue end of this trial, with respect to this session's start time
+        pole_in_time: float             # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
+        pole_out_time: float            # the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
         start_time: float               # start time of this trial, with respect to starting point of this session
         stop_time: float                # end time of this trial, with respect to starting point of this session
         """
@@ -263,14 +277,14 @@ class TrialSet(dj.Imported):
         nwb.close()
         
         # form new key-values pair and insert key
-        key['n_trials'] = len(trial_names)
+        key['trial_counts'] = len(trial_names)
         self.insert1(key)
         print(f'Inserted trial set for session: Subject: {animal_id} - Date: {date_of_experiment}')
         print('Inserting trial ID: ', end="")
         
         # loop through each trial and insert
         for idx, trialId in enumerate(trial_names):
-            key['trial_id'] = trialId
+            key['trial_id'] = trialId.lower()
             # -- start/stop time
             key['start_time'] = start_times[idx]
             key['stop_time'] = stop_times[idx]
