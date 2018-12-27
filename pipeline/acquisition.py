@@ -10,7 +10,7 @@ import scipy.io as sio
 import datajoint as dj
 import h5py as h5
 
-from . import reference, subject, helper_functions, stimulation
+from . import reference, subject, utilities, stimulation
 
 schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_acquisition')
 
@@ -72,7 +72,7 @@ class BehaviorAcquisition(dj.Imported):
         date_of_experiment = key['session_time']
         
         # Search the files in filenames to find a match for "this" session (based on key)
-        sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
+        sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             return
         nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
@@ -143,7 +143,7 @@ class IntracellularAcquisition(dj.Imported):
         date_of_experiment = key['session_time']
         
         # Search the files in filenames to find a match for "this" session (based on key)
-        sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
+        sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             return
         nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
@@ -174,7 +174,7 @@ class Extracellular(dj.Manual):
 @schema
 class ExtracellularAcquisition(dj.Imported):
     definition = """ # Raw extracellular recording, channel x time (e.g. LFP)
-    -> Probe
+    -> Extracellular
     """    
     
     class Voltage(dj.Part):
@@ -210,7 +210,7 @@ class Spike(dj.Imported):
         
 
 @schema
-class TrialSet(dj.Imported):
+class TrialSet(dj.Manual):
     definition = """
     -> Session
     ---
@@ -220,103 +220,38 @@ class TrialSet(dj.Imported):
     class Trial(dj.Part):
         definition = """
         -> master
-        trial_id: varchar(36)           # unique id of this trial in this trial set
+        trial_id: varchar(36)           # id of this trial in this trial set
         ---
-        cue_start_time: float           # cue onset of this trial (auditory cue), with respect to this session's start time
-        cue_end_time: float             # cue end of this trial, with respect to this session's start time
-        pole_in_time: float             # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
-        pole_out_time: float            # the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
-        start_time: float               # start time of this trial, with respect to starting point of this session
-        stop_time: float                # end time of this trial, with respect to starting point of this session
+        cue_start_time = null: float           # cue onset of this trial (auditory cue), with respect to this session's start time
+        cue_end_time = null: float             # cue end of this trial, with respect to this session's start time
+        pole_in_tim = null: float             # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
+        pole_out_time = null: float            # the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
+        start_time = null: float               # start time of this trial, with respect to starting point of this session
+        stop_time = null: float                # end time of this trial, with respect to starting point of this session
         """
         
     class TrialInfo(dj.Part):
-        definition = """
+        definition = """ # General information about this trial 
         -> master.Trial
         ---
         -> reference.TrialType
         -> reference.TrialResponse
-        trial_stim_present: bool # is this trial a Stimulation or No stimulation trial
-        trial_is_good: bool # is this a good or bad trial
+        trial_stim_present: bool  # is this a stim or no-stim trial
+        trial_is_good: bool  # is this a good or bad trial
         """
+ 
+    class TrialStimInfo(dj.Part):
+        definition = """ # information related to the stimulation settings for this trial
+        -> master.Trial
+        ---
+        photo_stim_type: enum('stimulation','inhibition','N/A')
+        photo_stim_period: enum('sample','delay','response','N/A')
+        photo_stim_power: float  # stimulation power in mW
+        photo_loc_galvo_x: float  # photostim coordinates field (mm)
+        photo_loc_galvo_y: float  # photostim coordinates field (mm)
+        photo_loc_galvo_z: float  # photostim coordinates field (mm)
+        """      
 
-    def make(self,key):
-        ############## Dataset #################
-        sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
-                
-        # Get the Session definition from the keys of this session
-        animal_id = key['subject_id']
-        date_of_experiment = key['session_time']
-        
-        # Search the files in filenames to find a match for "this" session (based on key)
-        sess_data_file = helper_functions.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
-        if sess_data_file is None: 
-            return
-        nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
-                
-        #  ============= Now read the data and start ingesting =============
-        # -- read data -- nwb['epochs']
-        trial_names = []
-        trial_descs = []
-        start_times = []
-        stop_times = []
-        for trial in list(nwb['epochs']):
-            trial_names.append(trial)
-            trial_descs.append(nwb['epochs'][trial]['description'].value)
-            start_times.append(nwb['epochs'][trial]['start_time'].value)
-            stop_times.append(nwb['epochs'][trial]['stop_time'].value)
-        # -- read data -- nwb['analysis']
-        good_trials = np.array(nwb['analysis']['good_trials'])
-        trial_type_string = np.array(nwb['analysis']['trial_type_string'])
-        trial_type_mat = np.array(nwb['analysis']['trial_type_mat'])
-        # -- read data -- nwb['stimulus']['presentation'])
-        cue_start_times = np.array(nwb['stimulus']['presentation']['cue_start']['timestamps'])
-        cue_end_times = np.array(nwb['stimulus']['presentation']['cue_end']['timestamps'])
-        pole_in_times = np.array(nwb['stimulus']['presentation']['pole_in']['timestamps'])
-        pole_out_times = np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
-        nwb.close()
-        
-        # form new key-values pair and insert key
-        key['trial_counts'] = len(trial_names)
-        self.insert1(key)
-        print(f'Inserted trial set for session: Subject: {animal_id} - Date: {date_of_experiment}')
-        print('Inserting trial ID: ', end="")
-        
-        # loop through each trial and insert
-        for idx, trialId in enumerate(trial_names):
-            key['trial_id'] = trialId.lower()
-            # -- start/stop time
-            key['start_time'] = start_times[idx]
-            key['stop_time'] = stop_times[idx]
-            # -- events timing
-            key['cue_start_time'] = cue_start_times[idx]
-            key['cue_end_time'] = cue_end_times[idx]
-            key['pole_in_time'] = pole_in_times[idx]
-            key['pole_out_time'] = pole_out_times[idx]            
-            # form new key-values pair for trial_partkey and insert
-            self.Trial.insert1(key, ignore_extra_fields=True)
-            print(f'{trialId} ',end="")
-            # ======== Now add trial descriptors to the TrialInfo part table ====
-            # - good/bad trial_status (nwb['analysis']['good_trials'])
-            key['trial_is_good'] = True if good_trials.flatten()[idx] == 1 else False
-            # - trial_type and trial_stim_present (nwb['epochs'][trial]['description']) 
-            trial_type, trial_stim_present =  re.split(', ',trial_descs[idx])
-            trial_type_choices = {'lick l trial':'lick left','lick r trial':'lick right'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
-            key['trial_type'] = trial_type_choices.get(trial_type.lower(),'N/A')
-            key['trial_stim_present'] = (trial_stim_present == 'Stim')
-            # - trial_response (nwb['analysis']['trial_type_string'])
-            # note, the last type_string value is duplicated info of "stim"/"no stim" above, so ignore it here (hence the [idx,:-1])
-            match_idx = np.where(trial_type_mat[idx,:-1] == 1)
-            trial_response =  trial_type_string.flatten()[match_idx].item(0).decode('UTF-8')
-            if re.search('correct',trial_response.lower()) is not None:
-                trial_response = 'correct'
-            elif re.search('incorrect',trial_response.lower()) is not None:
-                trial_response = 'incorrect'
-            key['trial_response'] = trial_response.lower()
-            # insert
-            self.TrialInfo.insert1(key, ignore_extra_fields=True)
-        print('')
-       
     
 @schema
 class TrialExtracellular(dj.Computed):

@@ -7,13 +7,14 @@ Created on Mon Dec  3 16:22:42 2018
 from datetime import datetime
 import os
 import re
+os.chdir('..')
 
 import h5py as h5
 import numpy as np
 
 import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation #, behavior, ephys, action
-from pipeline import helper_functions
+from pipeline import utilities
 
 
 # Merge all schema and generate the overall ERD (then save in "/images")
@@ -95,15 +96,17 @@ for fname in fnames:
     session_start_time = nwb['session_start_time'].value
     
     # -- session_time 
-    date_of_experiment = helper_functions.parse_prefix(session_start_time)
+    date_of_experiment = utilities.parse_prefix(session_start_time)
     experiment_types = re.split('Experiment type: ',experiment_description)[-1]
-    experiment_types = np.array(re.split(', ',experiment_types))
+    experiment_types = re.split(',\s?',experiment_types)
     
     # experimenter and experiment type (possible multiple experimenters or types)
-    for k in np.arange(experimenter.size):
-        reference.Experimenter.insert1({'experimenter': experimenter.item(k)},skip_duplicates=True)
-    for k in np.arange(experiment_types.size):
-        acquisition.ExperimentType.insert1({'experiment_type': experiment_types.item(k)},skip_duplicates=True)
+    experimenter = [experimenter] if np.array(experimenter).size <= 1 else  experimenter  # in case there's only 1 experimenter
+        
+    for k in experimenter:
+        reference.Experimenter.insert1({'experimenter': k},skip_duplicates=True)
+    for k in experiment_types:
+        acquisition.ExperimentType.insert1({'experiment_type': k},skip_duplicates=True)
 
     if date_of_experiment is not None: 
         with acquisition.Session.connection.transaction:
@@ -112,21 +115,84 @@ for fname in fnames:
                          'session_time': date_of_experiment,
                          'session_note': session_description
                          },skip_duplicates=True)
-            for k in np.arange(experimenter.size):
+            for k in experimenter:
                 acquisition.Session.Experimenter.insert1(            
                             {'subject_id':subject_id,
                              'session_time': date_of_experiment,
-                             'experimenter': experimenter.item(k)
+                             'experimenter': k
                              },skip_duplicates=True)
-            for k in np.arange(experiment_types.size):
+            for k in experiment_types:
                 acquisition.Session.ExperimentType.insert1(            
                             {'subject_id':subject_id,
                              'session_time': date_of_experiment,
-                             'experiment_type': experiment_types.item(k)
+                             'experiment_type': k
                              },skip_duplicates=True)
             # there is still the ExperimentType part table here...
             print(f'Creating Session - Subject: {subject_id} - Date: {date_of_experiment}')
+
+    # ==================== Trials ====================
+    key = {'subject_id': subject_id, 'session_time': date_of_experiment}
+    # -- read data -- nwb['epochs']
+    trial_names = []
+    trial_descs = []
+    start_times = []
+    stop_times = []
+    for trial in list(nwb['epochs']):
+        trial_names.append(trial)
+        trial_descs.append(nwb['epochs'][trial]['description'].value)
+        start_times.append(nwb['epochs'][trial]['start_time'].value)
+        stop_times.append(nwb['epochs'][trial]['stop_time'].value)
+    # -- read data -- nwb['analysis']
+    good_trials = np.array(nwb['analysis']['good_trials'])
+    trial_type_string = np.array(nwb['analysis']['trial_type_string'])
+    trial_type_mat = np.array(nwb['analysis']['trial_type_mat'])
+    # -- read data -- nwb['stimulus']['presentation'])
+    cue_start_times = np.array(nwb['stimulus']['presentation']['cue_start']['timestamps'])
+    cue_end_times = np.array(nwb['stimulus']['presentation']['cue_end']['timestamps'])
+    pole_in_times = np.array(nwb['stimulus']['presentation']['pole_in']['timestamps'])
+    pole_out_times = np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
     
+    # form new key-values pair and insert key
+    key['trial_counts'] = len(trial_names)
+    acquisition.TrialSet.insert1(key, skip_duplicates=True)
+    print(f'Inserted trial set for session: Subject: {subject_id} - Date: {date_of_experiment}')
+    print('Inserting trial ID: ', end="")
+    
+    # loop through each trial and insert
+    for idx, trialId in enumerate(trial_names):
+        key['trial_id'] = trialId.lower()
+        # -- start/stop time
+        key['start_time'] = start_times[idx]
+        key['stop_time'] = stop_times[idx]
+        # -- events timing
+        key['cue_start_time'] = cue_start_times[idx]
+        key['cue_end_time'] = cue_end_times[idx]
+        key['pole_in_time'] = pole_in_times[idx]
+        key['pole_out_time'] = pole_out_times[idx]            
+        # form new key-values pair for trial_partkey and insert
+        acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True)
+        print(f'{trialId} ',end="")
+        # ======== Now add trial descriptors to the TrialInfo part table ====
+        # - good/bad trial_status (nwb['analysis']['good_trials'])
+        key['trial_is_good'] = True if good_trials.flatten()[idx] == 1 else False
+        # - trial_type and trial_stim_present (nwb['epochs'][trial]['description']) 
+        trial_type, trial_stim_present =  re.split(', ',trial_descs[idx])
+        trial_type_choices = {'lick l trial':'lick left','lick r trial':'lick right'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
+        key['trial_type'] = trial_type_choices.get(trial_type.lower(),'N/A')
+        key['trial_stim_present'] = (trial_stim_present == 'Stim')
+        # - trial_response (nwb['analysis']['trial_type_string'])
+        # note, the last type_string value is duplicated info of "stim"/"no stim" above, so ignore it here (hence the [idx,:-1])
+        match_idx = np.where(trial_type_mat[idx,:-1] == 1)
+        trial_response =  trial_type_string.flatten()[match_idx].item(0).decode('UTF-8')
+        if re.search('correct',trial_response.lower()) is not None:
+            trial_response = 'correct'
+        elif re.search('incorrect',trial_response.lower()) is not None:
+            trial_response = 'incorrect'
+        key['trial_response'] = trial_response.lower()
+        # insert
+        acquisition.TrialSet.TrialInfo.insert1(key, ignore_extra_fields=True, skip_duplicates=True)
+    print('')
+
     # ==================== Intracellular ====================
             
     # -- read data - devices
@@ -264,8 +330,6 @@ for fname in fnames:
 
 # ====================== Starting import and compute procedure ======================
 
-# -- Trial-related
-acquisition.TrialSet.populate()
 # -- Intracellular
 acquisition.IntracellularAcquisition.populate()
 # -- Behavioral

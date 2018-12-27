@@ -158,7 +158,7 @@ class TrialType(dj.Lookup):
     definition = """ # # The experimental type of this trial, e.g. Lick Left vs Lick Right
     trial_type: varchar(32)
     """
-    contents = zip(['lick left','lick right','N/A'])
+    contents = zip(['lick left','lick right','non-performing','N/A'])
     
     
 @schema
@@ -168,3 +168,10 @@ class TrialResponse(dj.Lookup):
     """
     contents = zip(['correct','incorrect','no response','early lick','N/A'])
 
+@schema
+class TrialStimType(dj.Lookup):
+    definition = """ # The stimulation type of this trial, e.g. 'no stim', 'photo stimulation', 'photo inhibition'
+    trial_stim_type: varchar(32)
+    """
+    contents = zip(['no stim','photo stimulation','photo inhibition','N/A'])
+    
