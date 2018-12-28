@@ -48,23 +48,24 @@ for fname in fnames:
     
     # dob and sex
     sex = sex[0].upper()
-    splittedstr = re.split('Date of birth: ',desc)
-    dob = splittedstr[-1]
-    dob = datetime.strptime(str(dob),'%Y-%m-%d') 
-    
-    # strain and source
-    animal_strains = subject.Strain.fetch()
-    for s in animal_strains:
-        m = re.search(s[0], desc) 
-        if (m is not None):
-            strain = s[0]
-            break
-    animal_sources = reference.AnimalSource.fetch()
-    for s in animal_sources:
-        m = re.search(s[0], desc) 
-        if (m is not None):
-            animal_source = s[0]
-            break
+    dob = re.search('(?<=Date of birth:\s)(.*)', desc)
+    dob = utilities.parse_prefix(dob.group())
+        
+    # source and strain
+    strain_str = re.search('(?<=Animal Strain:\s)(.*)',desc) # extract the information related to animal strain
+    if strain_str is not None: # if found, search found string to find matched strain in db
+        for s in subject.StrainAlias.fetch():
+            m = re.search(s[0], strain_str.group()) 
+            if (m is not None):
+                strain = (subject.StrainAlias & {'strain_alias':s[0]}).fetch1('strain')
+                break
+    source_str = re.search('(?<=Animal source:\s)(.*)',desc) # extract the information related to animal strain
+    if source_str is not None: # if found, search found string to find matched strain in db
+        for s in reference.AnimalSourceAlias.fetch():
+            m = re.search(s[0], source_str.group()) 
+            if (m is not None):
+                animal_source = (reference.AnimalSourceAlias & {'animal_source_alias':s[0]}).fetch1('animal_source')
+                break
     
     if dob is not None:
         subject.Subject.insert1(
@@ -79,6 +80,9 @@ for fname in fnames:
     else: 
         subject.Subject.insert1(
                 {'subject_id':subject_id,
+                 'species':species,
+                 'strain':strain,
+                 'animal_source':animal_source,
                  'sex': sex,
                  'subject_description':desc}, 
                  skip_duplicates=True)
@@ -154,25 +158,18 @@ for fname in fnames:
     
     # form new key-values pair and insert key
     key['trial_counts'] = len(trial_names)
-    acquisition.TrialSet.insert1(key, skip_duplicates=True)
+    acquisition.TrialSet.insert1(key, skip_duplicates=True, allow_direct_insert=True)
     print(f'Inserted trial set for session: Subject: {subject_id} - Date: {date_of_experiment}')
     print('Inserting trial ID: ', end="")
     
     # loop through each trial and insert
-    for idx, trialId in enumerate(trial_names):
-        key['trial_id'] = trialId.lower()
+    for idx, trial_id in enumerate(trial_names):
+        trial_id = int(re.search('\d+',trial_id).group())
+        key['trial_id'] = trial_id
         # -- start/stop time
         key['start_time'] = start_times[idx]
         key['stop_time'] = stop_times[idx]
-        # -- events timing
-        key['cue_start_time'] = cue_start_times[idx]
-        key['cue_end_time'] = cue_end_times[idx]
-        key['pole_in_time'] = pole_in_times[idx]
-        key['pole_out_time'] = pole_out_times[idx]            
-        # form new key-values pair for trial_partkey and insert
-        acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True)
-        print(f'{trialId} ',end="")
-        # ======== Now add trial descriptors to the TrialInfo part table ====
+        # ======== Now add trial descriptors ====
         # - good/bad trial_status (nwb['analysis']['good_trials'])
         key['trial_is_good'] = True if good_trials.flatten()[idx] == 1 else False
         # - trial_type and trial_stim_present (nwb['epochs'][trial]['description']) 
@@ -190,7 +187,16 @@ for fname in fnames:
             trial_response = 'incorrect'
         key['trial_response'] = trial_response.lower()
         # insert
-        acquisition.TrialSet.TrialInfo.insert1(key, ignore_extra_fields=True, skip_duplicates=True)
+        acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        # ======== Now add trial event timing to the TrialInfo part table ====
+        # -- events timing
+        key['cue_start_time'] = cue_start_times[idx]
+        key['cue_end_time'] = cue_end_times[idx]
+        key['pole_in_time'] = pole_in_times[idx]
+        key['pole_out_time'] = pole_out_times[idx]            
+        # insert
+        acquisition.TrialSet.CuePoleTiming.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        print(f'{trial_id} ',end="")
     print('')
 
     # ==================== Intracellular ====================
@@ -201,20 +207,14 @@ for fname in fnames:
         devices[d] = nwb['general']['devices'][d].value.decode('UTF-8')
         
     # -- read data - intracellular_ephys
-    ie_desc = nwb['general']['intracellular_ephys']['whole_cell']['description'].value
     ie_device = nwb['general']['intracellular_ephys']['whole_cell']['device'].value
     ie_filtering = nwb['general']['intracellular_ephys']['whole_cell']['filtering'].value
-    ie_initial_access_resistance = nwb['general']['intracellular_ephys']['whole_cell']['initial_access_resistance'].value
     ie_location = nwb['general']['intracellular_ephys']['whole_cell']['location'].value
-    ie_resistance = nwb['general']['intracellular_ephys']['whole_cell']['resistance'].value
-    ie_seal = nwb['general']['intracellular_ephys']['whole_cell']['seal'].value
-    ie_slice = nwb['general']['intracellular_ephys']['whole_cell']['slice'].value
     
-    splittedstr = re.split(', |mm ',ie_location)
-    coord_ap_ml_dv = [float(splittedstr[0]),float(splittedstr[2]),float(splittedstr[4])] # make sure this is in mm
+    brain_region = re.split(',\s?',ie_location)[-1]
+    coord_ap_ml_dv = re.findall('\d+.\d+',ie_location)
     
     # -- BrainLocation
-    brain_region = splittedstr[-1]
     hemi = 'left' # this whole study is on left hemi
     reference.BrainLocation.insert1(
             {'brain_region': brain_region,
@@ -230,9 +230,9 @@ for fname in fnames:
              'cortical_layer': 'N/A',
              'hemisphere': hemi,
              'coordinate_ref': coordinate_ref,
-             'coordinate_ap':coord_ap_ml_dv[0],
-             'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
+             'coordinate_ap':float(coord_ap_ml_dv[0]),
+             'coordinate_ml':float(coord_ap_ml_dv[1]),
+             'coordinate_dv':float(coord_ap_ml_dv[2])},skip_duplicates=True)
     
     # -- Whole Cell Device
     stim_device = ie_device
@@ -250,29 +250,23 @@ for fname in fnames:
              'cortical_layer': 'N/A',
              'hemisphere': hemi,
              'coordinate_ref': coordinate_ref,
-             'coordinate_ap':coord_ap_ml_dv[0],
-             'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2],
+             'coordinate_ap':float(coord_ap_ml_dv[0]),
+             'coordinate_ml':float(coord_ap_ml_dv[1]),
+             'coordinate_dv':float(coord_ap_ml_dv[2]),
              'device_name':ie_device},skip_duplicates=True)
 
-    # ==================== Photo stimulation ====================
+    # ==================== Photo stimulation ====================    
     # -- read data - optogenetics
-    opto_site_names = []
-    opto_site_descs = []
-    opto_excitation_lambdas = []
-    opto_locations = []
-    for site in list(nwb['general']['optogenetics']):
-        opto_site_names.append(site)
-        opto_site_descs.append(nwb['general']['optogenetics'][site]['description'].value.decode('UTF-8'))
-        opto_excitation_lambdas.append(nwb['general']['optogenetics'][site]['excitation_lambda'].value.decode('UTF-8'))
-        opto_locations.append(nwb['general']['optogenetics'][site]['location'].value.decode('UTF-8'))
+    opto_site_name = list(nwb['general']['optogenetics'].keys())[0]
+    opto_descs = nwb['general']['optogenetics'][opto_site_name]['description'].value.decode('UTF-8')
+    opto_excitation_lambda = nwb['general']['optogenetics'][opto_site_name]['excitation_lambda'].value.decode('UTF-8')
+    opto_location = nwb['general']['optogenetics'][opto_site_name]['location'].value.decode('UTF-8')
     
-    opto_location = opto_locations[0]
-    splittedstr = re.split(', |AP-|ML-|DV-',opto_location)
-    coord_ap_ml_dv = [float(splittedstr[-5]),float(splittedstr[-3]),float(splittedstr[-1])] # make sure this is in mm
+    splittedstr = re.split(',\s?coordinates:\s?',opto_location)
+    brain_region = splittedstr[0]
+    coord_ap_ml_dv = re.findall('\d+.\d+',splittedstr[-1])
     
     # -- BrainLocation
-    brain_region = splittedstr[0]
     hemi = 'left' # this whole study is on left hemi
     reference.BrainLocation.insert1(
             {'brain_region': brain_region,
@@ -288,17 +282,16 @@ for fname in fnames:
              'cortical_layer': 'N/A',
              'hemisphere': hemi,
              'coordinate_ref': coordinate_ref,
-             'coordinate_ap':coord_ap_ml_dv[0],
-             'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2]},skip_duplicates=True)
+             'coordinate_ap':float(coord_ap_ml_dv[0]),
+             'coordinate_ml':float(coord_ap_ml_dv[1]),
+             'coordinate_dv':float(coord_ap_ml_dv[2])},skip_duplicates=True)
     
     # -- Device
     stim_device = 'laser' # hard-coded here..., could not find a more specific name from metadata 
     stimulation.PhotoStimDevice.insert1({'device_name':stim_device, 'device_desc': devices[stim_device]},skip_duplicates=True)
     
     # -- PhotoStimulationInfo
-    opto_site_name = opto_site_names[0]
-    opto_wavelength = int(re.findall("\d+", opto_excitation_lambdas[0])[0])
+    opto_excitation_lambda = re.search("\d+", opto_excitation_lambda).group()
     stimulation.PhotoStimulationInfo.insert1(
             {'photo_stim_id':opto_site_name,
              'brain_region': brain_region,
@@ -306,12 +299,12 @@ for fname in fnames:
              'cortical_layer': 'N/A',
              'hemisphere': hemi,
              'coordinate_ref': coordinate_ref,
-             'coordinate_ap':coord_ap_ml_dv[0],
-             'coordinate_ml':coord_ap_ml_dv[1],
-             'coordinate_dv':coord_ap_ml_dv[2],
+             'coordinate_ap':float(coord_ap_ml_dv[0]),
+             'coordinate_ml':float(coord_ap_ml_dv[1]),
+             'coordinate_dv':float(coord_ap_ml_dv[2]),
              'device_name':stim_device,
-             'photo_stim_excitation_lambdas': float(opto_wavelength),
-             'photo_stim_notes':opto_site_descs[0],},skip_duplicates=True)          
+             'photo_stim_excitation_lambdas': float(opto_excitation_lambda),
+             'photo_stim_notes':opto_descs,},skip_duplicates=True)          
 
     # -- PhotoStimulation 
     # only 1 photostim per session, perform at the same time with session
@@ -334,23 +327,3 @@ for fname in fnames:
 acquisition.IntracellularAcquisition.populate()
 # -- Behavioral
 acquisition.BehaviorAcquisition.populate()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -25,14 +25,14 @@ class Strain(dj.Lookup):
     
 @schema
 class StrainAlias(dj.Lookup):
-    definition = """ Other animal strain names that may be used interchangeably in different studies
+    definition = """  # Other animal strain names that may be used interchangeably in different studies
     strain_alias: varchar(24)
     ---
     -> Strain
     """
     contents = [
-            ['C57BL6','B6'],
-            ['B6','B6'],
+            ['C57BL6','C57BL6'],
+            ['B6','C57BL6'],
             ['Ai35D','Ai35D'],
             ['N/A','N/A']
             ]
