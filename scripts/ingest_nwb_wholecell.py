@@ -12,13 +12,20 @@ import h5py as h5
 import numpy as np
 
 import datajoint as dj
-from pipeline import reference, subject, acquisition, stimulation #, behavior, ephys, action
+from pipeline import reference, subject, acquisition, stimulation, analysis #, behavior, ephys, action
 from pipeline import utilities
 
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(stimulation) + dj.ERD(acquisition) #+ dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(action)  
+all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(stimulation) + dj.ERD(acquisition)  + dj.ERD(analysis) #+ dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(action)  
 all_erd.save('./images/all_erd.png')
+
+acq_erd = dj.ERD(acquisition)
+acq_erd.save('./images/acquisition_erd.png')
+
+analysis_erd = dj.ERD(analysis)
+analysis_erd.save('./images/analysis_erd.png')
+
 
 ############## Dataset #################
 path = os.path.join('.','data','whole_cell_nwb2.0')
