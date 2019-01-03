@@ -75,6 +75,7 @@ class BehaviorAcquisition(dj.Imported):
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
+            print(f'BehaviorAcquisition import failed for: {animal_id} - {date_of_experiment}')
             return
         nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
         
@@ -87,12 +88,12 @@ class BehaviorAcquisition(dj.Imported):
         lick_trace_time_stamps = nwb['acquisition']['timeseries']['lick_trace_R']['timestamps'].value
         key['lick_trace_start_time'] = lick_trace_time_stamps[0]
         key['lick_trace_sampling_rate'] = 1/np.mean(np.diff(lick_trace_time_stamps))        
-        self.LickTrace.insert1(key, ignore_extra_fields=True)
+        self.LickTrace.insert1(key)
 
 
 @schema
 class PhotoStimulation(dj.Manual):
-    definition = """ # Table containing information relating to the stimulatiom (stimulation type (optical or electrical), location, device)
+    definition = """ # Photostimulus profile used for stimulation in this session
     -> Session
     photostim_datetime: varchar(36) # the time of performing this stimulation with respect to start time of the session, in the scenario of multiple stimulations per session
     ---
@@ -105,7 +106,7 @@ class PhotoStimulation(dj.Manual):
 
 @schema
 class Cell(dj.Manual):
-    definition = """ # Information relating to the Cell and the intracellular recording of this cell (e.g. location, recording device)
+    definition = """ # A cell undergone intracellular recording in this session
     -> Session
     cell_id: varchar(36) # a string identifying the cell in which this intracellular recording is concerning
     ---
@@ -117,7 +118,7 @@ class Cell(dj.Manual):
     
 @schema
 class IntracellularAcquisition(dj.Imported):
-    definition = """ # data pertain to intracellular recording
+    definition = """ # Membrane potential recording from a cell, and electrical stimulation profile to this cell
     -> Cell
     """     
     
@@ -151,6 +152,7 @@ class IntracellularAcquisition(dj.Imported):
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
+            print(f'IntracellularAcquisition import failed for: {animal_id} - {date_of_experiment}')
             return
         nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
         
@@ -158,24 +160,24 @@ class IntracellularAcquisition(dj.Imported):
         self.insert1(key)
         print('Insert intracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
         # -- MembranePotential
-        key['membrane_potential'] = nwb['acquisition']['timeseries']['membrane_potential']['data'].value
-        key['membrane_potential_wo_spike'] = nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'].value
         membrane_potential_time_stamps = nwb['acquisition']['timeseries']['membrane_potential']['timestamps'].value
-        key['membrane_potential_start_time'] = membrane_potential_time_stamps[0]
-        key['membrane_potential_sampling_rate'] = 1/np.mean(np.diff(membrane_potential_time_stamps))        
-        self.MembranePotential.insert1(key, ignore_extra_fields=True)
+        self.MembranePotential.insert1(dict(key, 
+            membrane_potential = nwb['acquisition']['timeseries']['membrane_potential']['data'].value,
+            membrane_potential_wo_spike = nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'].value,
+            membrane_potential_start_time = membrane_potential_time_stamps[0],
+            membrane_potential_sampling_rate = 1/np.mean(np.diff(membrane_potential_time_stamps))))        
         # -- CurrentInjection
-        key['current_injection'] = nwb['acquisition']['timeseries']['current_injection']['data'].value
         current_injection_time_stamps = nwb['acquisition']['timeseries']['current_injection']['timestamps'].value
-        key['current_injection_start_time'] = current_injection_time_stamps[0]
-        key['current_injection_sampling_rate'] = 1/np.mean(np.diff(current_injection_time_stamps))                
-        self.CurrentInjection.insert1(key, ignore_extra_fields=True)
+        self.CurrentInjection.insert1(dict(key,
+            current_injection = nwb['acquisition']['timeseries']['current_injection']['data'].value,
+            current_injection_start_time = current_injection_time_stamps[0],
+            current_injection_sampling_rate = 1/np.mean(np.diff(current_injection_time_stamps))))                
         nwb.close()
 
     
 @schema
 class ProbeInsertion(dj.Manual):
-    definition = """ # Information relating to the extracelluar recording (e.g. location, probe)
+    definition = """ # Description of probe insertion details during extracellular recording
     -> Session
     -> reference.Probe
     -> reference.ActionLocation
@@ -192,9 +194,9 @@ class ExtracellularAcquisition(dj.Imported):
         definition = """
         -> master
         ---
-        voltage: longblob   
-        voltage_start_time: float # first timepoint of voltage recording
-        voltage_sampling_rate: float # sampling rate of voltage recording
+        voltage: longblob   # (in mV)
+        voltage_start_time: float # (in second) first timepoint of voltage recording
+        voltage_sampling_rate: float # (in Hz) sampling rate of voltage recording
         """
         
     def make(self,key):
@@ -209,12 +211,12 @@ class UnitSpikeTimes(dj.Imported):
     unit_id : smallint
     ---
     -> reference.Probe.Channel
-    spike_times: longblob # time of each spike, with respect to the start of session 
-    unit_cell_type: varchar(32) # e.g. cell-type of this unit (e.g. wide width, narrow width spiking)
-    unit_depth_x: float
-    unit_depth_y: float
-    unit_depth_z: float
-    spike_waveform: longblob # waveform(s) of each spike at each spike time (spike_time x waveform_timestamps)
+    spike_times: longblob  # (in second) time of each spike, with respect to the start of session 
+    unit_cell_type: varchar(32)  # e.g. cell-type of this unit (e.g. wide width, narrow width spiking)
+    unit_depth_x: float  # (in mm)
+    unit_depth_y: float  # (in mm)
+    unit_depth_z: float  # (in mm)
+    spike_waveform: longblob  # waveform(s) of each spike at each spike time (spike_time x waveform_timestamps)
     """
         
     def make(self,key):
@@ -228,6 +230,7 @@ class UnitSpikeTimes(dj.Imported):
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
+            print(f'UnitSpikeTimes import failed for: {animal_id} - {date_of_experiment}')
             return
         nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
 
@@ -246,14 +249,12 @@ class UnitSpikeTimes(dj.Imported):
             unit_id = int(re.search('\d+',unit_str).group())
             unit_depth = ec_unit_times.get(unit_str).get('depth').value
             key['unit_id'] = unit_id
-            key['channel_id'] = ec_event_waveform.get(unit_str).get('electrode_idx').value.item(0) - 1  # TODO: check if electrode_idx has MATLAB idx (starts at 1)
+            key['channel_id'] = ec_event_waveform.get(unit_str).get('electrode_idx').value.item(0) - 1  # TODO: check if electrode_idx has MATLAB 1-based indexing (starts at 1)
             key['spike_times'] = ec_unit_times.get(unit_str).get('times').value
             key['unit_cell_type'] = cell_type[unit_str]
-            key['unit_depth_x'] = unit_depth[0]
-            key['unit_depth_y'] = unit_depth[1]
-            key['unit_depth_z'] = unit_depth[2]
+            key.update((('unit_depth_x','unit_depth_y','unit_depth_z'),unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
-            self.insert1(key, ignore_extra_fields=True)
+            self.insert1(key)
             print(f'{unit_id} ',end="")
         print('')
         nwb.close()
@@ -281,13 +282,13 @@ class TrialSet(dj.Imported):
         """
         
     class CuePoleTiming(dj.Part):
-        definition = """ # General information about this trial 
+        definition = """ # experimental paradigm event timing marker(s) for this trial
         -> master.Trial
         ---
-        cue_start_time = null: float           # cue onset of this trial (auditory cue), with respect to this session's start time
-        cue_end_time = null: float      # cue end of this trial, with respect to this session's start time
-        pole_in_time = null: float              # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
-        pole_out_time = null: float            # the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
+        cue_start_time = null: float   # (in second) cue onset of this trial (auditory cue), with respect to this session's start time
+        cue_end_time = null: float     # (in second) cue end of this trial, with respect to this session's start time
+        pole_in_time = null: float     # (in second) the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
+        pole_out_time = null: float    # (in second) the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
         """
 
     def make(self,key):
@@ -302,89 +303,14 @@ class TrialStimInfo(dj.Imported):
     ---
     photo_stim_type: enum('stimulation','inhibition','N/A')
     photo_stim_period: enum('sample','delay','response','N/A')
-    photo_stim_power: float  # stimulation power in mW
-    photo_loc_galvo_x: float  # photostim coordinates field (mm)
-    photo_loc_galvo_y: float  # photostim coordinates field (mm)
-    photo_loc_galvo_z: float  # photostim coordinates field (mm)
+    photo_stim_power: float  # (in mW) stimulation power 
+    photo_loc_galvo_x: float  # (in mm) photostim coordinates field 
+    photo_loc_galvo_y: float  # (in mm) photostim coordinates field 
+    photo_loc_galvo_z: float  # (in mm) photostim coordinates field 
     """    
     
     def make(self,key):
         # this function implements the ingestion of Trial stim info into the pipeline
         return None
-    
-    
-@schema
-class TrialExtracellular(dj.Computed):
-    definition = """
-    -> ExtracellularAcquisition
-    -> TrialSet.Trial
-    ---
-    segmented_extracellular: longblob
-    """
-    
-    class Voltage(dj.Part):
-        definition = """
-        -> master
-        ---
-        segmented_voltage: longblob   
-        """
-    
-    class Spike(dj.Part):
-        definition = """
-        -> master
-        ---
-        segmented_spike: longblob   
-        """      
-    
-    
-@schema
-class TrialIntracellular(dj.Computed):
-    definition = """
-    -> IntracellularAcquisition
-    -> TrialSet.Trial
-    """
-    
-    class MembranePotential(dj.Part):
-        definition = """
-        -> master
-        ---
-        segmented_mp: longblob   
-        segmented_mp_wo_spike: longblob
-        """
-    
-    class CurrentInjection(dj.Part):
-        definition = """
-        -> master
-        ---
-        segmented_current_injection: longblob
-        """
-    
-    
-@schema     
-class TrialBehavior(dj.Computed):   
-    definition = """
-    -> BehaviorAcquisition
-    -> TrialSet.Trial
-    ---
-    segmented_behavior: longblob
-    """
-    
-    class LickTrace(dj.Part):
-        definition = """
-        -> master
-        ---
-        segmented_lt_left: longblob   
-        segmented_lt_right: longblob
-        """   
-    
-    
-@schema
-class TrialPhotoStimulus(dj.Computed):
-    definition = """
-    -> PhotoStimulation
-    -> TrialSet.Trial
-    ---
-    segmented_photostim: longblob
-    """
     
     

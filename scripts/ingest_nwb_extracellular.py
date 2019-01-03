@@ -12,7 +12,7 @@ import h5py as h5
 import numpy as np
 
 import datajoint as dj
-from pipeline import reference, subject, acquisition, stimulation
+from pipeline import reference, subject, acquisition, stimulation, analysis
 from pipeline import utilities
 
 ############## Dataset #################
@@ -137,6 +137,7 @@ for fname in fnames:
     trial_type_string = np.array(nwb['analysis']['trial_type_string'])
     trial_type_mat = np.array(nwb['analysis']['trial_type_mat'])
     # -- read data -- nwb['stimulus']['presentation'])
+    cue_duration = 0.1  # hard-coded the fact that an auditory cue last 0.1 second
     auditory_cue = np.array(nwb['stimulus']['presentation']['auditory_cue']['timestamps'])
     pole_in_times = np.array(nwb['stimulus']['presentation']['pole_in']['timestamps'])
     pole_out_times = np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
@@ -181,6 +182,7 @@ for fname in fnames:
         # ======== Now add trial event timing to the TrialInfo part table ====
         # -- events timing
         key['cue_start_time'] = auditory_cue[idx]
+        key['cue_end_time'] = key['cue_start_time'] + cue_duration  # hard-coded here for cue_end_time
         key['pole_in_time'] = pole_in_times[idx]
         key['pole_out_time'] = pole_out_times[idx]            
         # insert

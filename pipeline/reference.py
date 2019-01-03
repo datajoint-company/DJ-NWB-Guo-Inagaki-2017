@@ -8,7 +8,7 @@ schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_reference')
 
 @schema
 class WholeCellDevice(dj.Lookup):
-    definition = """ # Information about the devices used for electrical stimulation
+    definition = """ # Description of the device used for electrical stimulation
     device_name: varchar(32)
     ---
     device_desc = "": varchar(1024)
@@ -17,8 +17,7 @@ class WholeCellDevice(dj.Lookup):
 
 @schema
 class Probe(dj.Lookup):
-    definition = """
-    # Description of a particular model of probe.
+    definition = """ # Description of a particular model of probe.
     probe_name: varchar(128)      # String naming probe model
     ---
     channel_counts: smallint            # number of channels in the probe
@@ -74,7 +73,7 @@ class CoordinateReference(dj.Lookup):
     
 @schema 
 class ActionLocation(dj.Manual): 
-    definition = """ # Information relating the location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
+    definition = """ # Location of any experimental task (e.g. recording (extra/intra cellular), stimulation (photo or current) )
     -> BrainLocation
     -> CoordinateReference
     coordinate_ap: decimal(4,2)    # in mm, anterior positive, posterior negative 
@@ -155,7 +154,7 @@ class WhiskerConfig(dj.Lookup):
     
 @schema
 class TrialType(dj.Lookup):
-    definition = """ # # The experimental type of this trial, e.g. Lick Left vs Lick Right
+    definition = """ # The experimental type of this trial, e.g. Lick Left vs Lick Right
     trial_type: varchar(32)
     """
     contents = zip(['lick left','lick right','non-performing','N/A'])
