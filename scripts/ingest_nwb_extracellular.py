@@ -10,7 +10,6 @@ import re
 
 import h5py as h5
 import numpy as np
-os.chdir('..')
 
 import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation
@@ -159,7 +158,6 @@ for fname in fnames:
         # search through all keyword in trial descriptor tags (keywords are not in fixed order)
         is_early_lick = False  # if a trial response is 'early lick', then it does not matter if that trial is a correct or incorrect lick anymore
         for tag in tags[idx]:
-            print(tag)
             # good/bad
             key['trial_is_good'] = (re.match('good', tag, re.I) is not None)
             # stim/no-stim
@@ -265,57 +263,61 @@ for fname in fnames:
     opto_stimulation_method = nwb['general']['optogenetics'][opto_site_name]['stimulation_method'].value.decode('UTF-8')
 
     brain_region = re.search('(?<=atlas location:\s)(.*)', opto_location).group()
-    coord_ap_ml_dv = re.search('(?<=\[)(.*)(?=\])', opto_location).group()
-    coord_ap_ml_dv = re.split(',',coord_ap_ml_dv)
     
-    # -- BrainLocation
-    hemi = 'left' # this whole study is on left hemi
-    reference.BrainLocation.insert1(
-            {'brain_region': brain_region,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi},skip_duplicates=True)
-    
-    # -- ActionLocation
-    coordinate_ref = 'bregma' # double check!!
-    reference.ActionLocation.insert1(
-            {'brain_region': brain_region,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi,
-             'coordinate_ref': coordinate_ref,
-             'coordinate_ap': float(coord_ap_ml_dv[0]),
-             'coordinate_ml': float(coord_ap_ml_dv[1]),
-             'coordinate_dv': float(coord_ap_ml_dv[2])},skip_duplicates=True)
+    # if no brain region (NA, or N/A, or ' '), skip photostim insert
+    if re.search('\s+|N/?A', brain_region) is None:
         
-    # -- PhotoStimulationInfo
-    stimulation.PhotoStimulationInfo.insert1(
-            {'photo_stim_id' : opto_site_name,
-             'brain_region' : brain_region,
-             'brain_subregion' :'N/A',
-             'cortical_layer' : 'N/A',
-             'hemisphere' : hemi,
-             'coordinate_ref' : coordinate_ref,
-             'coordinate_ap' : float(coord_ap_ml_dv[0]),
-             'coordinate_ml' : float(coord_ap_ml_dv[1]),
-             'coordinate_dv' : float(coord_ap_ml_dv[2]),
-             'device_name' : stim_device,
-             'photo_stim_excitation_lambdas' : float(opto_excitation_lambda),
-             'photo_stim_notes': opto_descs},skip_duplicates=True)          
+        coord_ap_ml_dv = re.search('(?<=\[)(.*)(?=\])', opto_location).group()
+        coord_ap_ml_dv = re.split(',',coord_ap_ml_dv)
 
-    # -- PhotoStimulation 
-    # only 1 photostim per session, perform at the same time with session
-    photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
-    photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value   
-    # if the dataset does not contain photostim timeseries, skip
-    if isinstance(photostim_data,np.ndarray):
-        acquisition.PhotoStimulation.insert1(
-                {'subject_id':subject_id,
-                 'session_time': date_of_experiment,
-                 'photostim_datetime': date_of_experiment,
-                 'photo_stim_id':opto_site_name,
-                 'photostim_timeseries': photostim_data,
-                 'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
+        # -- BrainLocation
+        hemi = 'left' # this whole study is on left hemi
+        reference.BrainLocation.insert1(
+                {'brain_region': brain_region,
+                 'brain_subregion':'N/A',
+                 'cortical_layer': 'N/A',
+                 'hemisphere': hemi},skip_duplicates=True)
+        
+        # -- ActionLocation
+        coordinate_ref = 'bregma' # double check!!
+        reference.ActionLocation.insert1(
+                {'brain_region': brain_region,
+                 'brain_subregion':'N/A',
+                 'cortical_layer': 'N/A',
+                 'hemisphere': hemi,
+                 'coordinate_ref': coordinate_ref,
+                 'coordinate_ap': float(coord_ap_ml_dv[0]),
+                 'coordinate_ml': float(coord_ap_ml_dv[1]),
+                 'coordinate_dv': float(coord_ap_ml_dv[2])},skip_duplicates=True)
+            
+        # -- PhotoStimulationInfo
+        stimulation.PhotoStimulationInfo.insert1(
+                {'photo_stim_id' : opto_site_name,
+                 'brain_region' : brain_region,
+                 'brain_subregion' :'N/A',
+                 'cortical_layer' : 'N/A',
+                 'hemisphere' : hemi,
+                 'coordinate_ref' : coordinate_ref,
+                 'coordinate_ap' : float(coord_ap_ml_dv[0]),
+                 'coordinate_ml' : float(coord_ap_ml_dv[1]),
+                 'coordinate_dv' : float(coord_ap_ml_dv[2]),
+                 'device_name' : stim_device,
+                 'photo_stim_excitation_lambdas' : float(opto_excitation_lambda),
+                 'photo_stim_notes': opto_descs},skip_duplicates=True)          
+    
+        # -- PhotoStimulation 
+        # only 1 photostim per session, perform at the same time with session
+        photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
+        photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value   
+        # if the dataset does not contain photostim timeseries, skip
+        if isinstance(photostim_data,np.ndarray):
+            acquisition.PhotoStimulation.insert1(
+                    {'subject_id':subject_id,
+                     'session_time': date_of_experiment,
+                     'photostim_datetime': date_of_experiment,
+                     'photo_stim_id':opto_site_name,
+                     'photostim_timeseries': photostim_data,
+                     'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
 
     # -- finish manual ingestion for this file
     nwb.close()
