@@ -3,8 +3,9 @@ from datetime import datetime
 import re
 
 import h5py as h5
+import numpy as np
 
-from . import reference
+from . import reference, acquisition
 
 
 # datetime format - should probably read this from a config file and not hard coded here
@@ -63,5 +64,40 @@ def find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment):
         else: 
             print(f'Found datafile: {sess_data_file}')
             return sess_data_file
+ 
+
+def segment_trial_based(trial_key, event_name, pre_stim_dur, post_stim_dur, data, fs, first_time_point):
+        # get event time
+        if event_name == 'start_time' or event_name == 'stop_time':
+            event_time_point = (acqusition.TrialSet.Trial & trial_key).fetch1(event_name)
+        else:
+            try:
+                event_time_point = (acqusition.TrialSet.CuePoleTiming & trial_key).fetch1(event_name)
+            except Exception as e:
+                print(f'Error extracting event type: {event_name}\nMsg: {str(e)}')
+                return
+        # check if pre/post stim dur is within start/stop time
+        trial_start, trial_stop = (acqusition.TrialSet.Trial & trial_key).fetch1('start_time','stop_time')
+        if event_time_point - pre_stim_dur < trial_start:
+            print('Warning: Out of bound prestimulus duration, set to 0')
+            pre_stim_dur = 0
+        if event_time_point + post_stim_dur > trial_stop:
+            print('Warning: Out of bound poststimulus duration, set to trial end time')
+            post_stim_dur = trial_stop - event_time_point
+
+        event_sample_point = (event_time_point - first_time_point) * fs
+        sample_points_to_extract = np.arange(event_sample_point - pre_stim_dur * fs, event_sample_point - post_stim_dur * fs + 1)
+        segmented_data = data[sample_points_to_extract]
         
+        # recompute other event timing with respect to the time-lock event (t=0)
+        cue_start, cue_end, pole_in, pole_out = (acqusition.TrialSet.CuePoleTiming & trial_key).fetch1('cue_start_time','cue_end_time','pole_in_time','pole_out_time')
+        trial_start = trial_start - event_time_point
+        trial_stop = trial_stop - event_time_point
+        cue_start = cue_start - event_time_point
+        cue_end = cue_end - event_time_point
+        pole_in = pole_in - event_time_point
+        pole_out = pole_out - event_time_point
+        
+        return segmented_data, trial_start, trial_stop, cue_start, cue_end, pole_in, pole_out
+       
         

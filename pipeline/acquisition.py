@@ -60,7 +60,8 @@ class BehaviorAcquisition(dj.Imported):
         ---
         lick_trace_left: longblob   
         lick_trace_right: longblob
-        lick_trace_time_stamps: longblob
+        lick_trace_start_time: float # first timepoint of lick trace recording
+        lick_trace_sampling_rate: float # sampling rate of lick trace recording
         """       
         
     def make(self,key):
@@ -79,11 +80,13 @@ class BehaviorAcquisition(dj.Imported):
         
         #  ============= Now read the data and start ingesting =============
         self.insert1(key)
-        print('Insert extracellular data for: subject: {0} - date: {1}'.format(key['subject_id'],key['session_time']))
+        print('Insert behavioral data for: subject: {0} - date: {1}'.format(key['subject_id'],key['session_time']))
         # -- MembranePotential
-        key['lick_trace_left'] = np.array(nwb['acquisition']['timeseries']['lick_trace_L']['data'])
-        key['lick_trace_right'] = np.array(nwb['acquisition']['timeseries']['lick_trace_R']['data'])
-        key['lick_trace_time_stamps'] = np.array(nwb['acquisition']['timeseries']['lick_trace_L']['timestamps'])
+        key['lick_trace_left'] = nwb['acquisition']['timeseries']['lick_trace_L']['data'].value
+        key['lick_trace_right'] = nwb['acquisition']['timeseries']['lick_trace_R']['data'].value
+        lick_trace_time_stamps = nwb['acquisition']['timeseries']['lick_trace_R']['timestamps'].value
+        key['lick_trace_start_time'] = lick_trace_time_stamps[0]
+        key['lick_trace_sampling_rate'] = 1/np.mean(np.diff(lick_trace_time_stamps))        
         self.LickTrace.insert1(key, ignore_extra_fields=True)
 
 
@@ -95,7 +98,8 @@ class PhotoStimulation(dj.Manual):
     ---
     -> stimulation.PhotoStimulationInfo
     photostim_timeseries: longblob
-    photostim_time_stamps: longblob
+    photostim_start_time: float # first timepoint of photostim recording
+    photostim_sampling_rate: float # sampling rate of photostim recording
     """    
 
 
@@ -123,7 +127,8 @@ class IntracellularAcquisition(dj.Imported):
         ---
         membrane_potential: longblob    # Membrane potential recording at this cell
         membrane_potential_wo_spike: longblob # membrane potential without spike data, derived from membrane potential recording    
-        membrane_potential_time_stamps: longblob # timestamps of membrane potential recording
+        membrane_potential_start_time: float # first timepoint of membrane potential recording
+        membrane_potential_sampling_rate: float # sampling rate of membrane potential recording
         """
         
     class CurrentInjection(dj.Part):
@@ -131,7 +136,8 @@ class IntracellularAcquisition(dj.Imported):
         -> master
         ---
         current_injection: longblob
-        current_injection_time_stamps: longblob        
+        current_injection_start_time: float # first timepoint of current injection recording
+        current_injection_sampling_rate: float # sampling rate of current injection recording
         """
         
     def make(self,key):
@@ -150,15 +156,19 @@ class IntracellularAcquisition(dj.Imported):
         
         #  ============= Now read the data and start ingesting =============
         self.insert1(key)
-        print('Insert behavioral data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
+        print('Insert intracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
         # -- MembranePotential
-        key['membrane_potential'] = np.array(nwb['acquisition']['timeseries']['membrane_potential']['data'])
-        key['membrane_potential_wo_spike'] = np.array(nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'])
-        key['membrane_potential_time_stamps'] = np.array(nwb['acquisition']['timeseries']['membrane_potential']['timestamps'])
+        key['membrane_potential'] = nwb['acquisition']['timeseries']['membrane_potential']['data'].value
+        key['membrane_potential_wo_spike'] = nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'].value
+        membrane_potential_time_stamps = nwb['acquisition']['timeseries']['membrane_potential']['timestamps'].value
+        key['membrane_potential_start_time'] = membrane_potential_time_stamps[0]
+        key['membrane_potential_sampling_rate'] = 1/np.mean(np.diff(membrane_potential_time_stamps))        
         self.MembranePotential.insert1(key, ignore_extra_fields=True)
         # -- CurrentInjection
-        key['current_injection'] = np.array(nwb['acquisition']['timeseries']['current_injection']['data'])
-        key['current_injection_time_stamps'] = np.array(nwb['acquisition']['timeseries']['current_injection']['timestamps']),
+        key['current_injection'] = nwb['acquisition']['timeseries']['current_injection']['data'].value
+        current_injection_time_stamps = nwb['acquisition']['timeseries']['current_injection']['timestamps'].value
+        key['current_injection_start_time'] = current_injection_time_stamps[0]
+        key['current_injection_sampling_rate'] = 1/np.mean(np.diff(current_injection_time_stamps))                
         self.CurrentInjection.insert1(key, ignore_extra_fields=True)
         nwb.close()
 
@@ -183,15 +193,17 @@ class ExtracellularAcquisition(dj.Imported):
         -> master
         ---
         voltage: longblob   
-        voltage_time_stamps: longblob
+        voltage_start_time: float # first timepoint of voltage recording
+        voltage_sampling_rate: float # sampling rate of voltage recording
         """
         
     def make(self,key):
         # this function implements the ingestion of raw extracellular data into the pipeline
         return None
 
+
 @schema
-class Spike(dj.Imported):
+class UnitSpikeTimes(dj.Imported):
     definition = """ 
     -> ProbeInsertion
     unit_id : smallint
@@ -274,13 +286,14 @@ class TrialSet(dj.Imported):
         ---
         cue_start_time = null: float           # cue onset of this trial (auditory cue), with respect to this session's start time
         cue_end_time = null: float      # cue end of this trial, with respect to this session's start time
-        pole_in_tim = null: float              # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
+        pole_in_time = null: float              # the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
         pole_out_time = null: float            # the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
         """
 
     def make(self,key):
         # this function implements the ingestion of Trial data into the pipeline
         return None
+    
     
 @schema
 class TrialStimInfo(dj.Imported):
@@ -298,6 +311,7 @@ class TrialStimInfo(dj.Imported):
     def make(self,key):
         # this function implements the ingestion of Trial stim info into the pipeline
         return None
+    
     
 @schema
 class TrialExtracellular(dj.Computed):
@@ -347,7 +361,7 @@ class TrialIntracellular(dj.Computed):
     
     
 @schema     
-class TrialBehavior(dj.Computed):
+class TrialBehavior(dj.Computed):   
     definition = """
     -> BehaviorAcquisition
     -> TrialSet.Trial

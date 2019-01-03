@@ -308,22 +308,23 @@ for fname in fnames:
 
     # -- PhotoStimulation 
     # only 1 photostim per session, perform at the same time with session
-    photostim_data = np.array(nwb['stimulus']['presentation']['photostimulus']['data'])
-    photostim_timestamps = np.array(nwb['stimulus']['presentation']['photostimulus']['timestamps'])   
+    photostim_data = nwb['stimulus']['presentation']['photostimulus']['data'].value
+    photostim_timestamps = nwb['stimulus']['presentation']['photostimulus']['timestamps'].value   
     acquisition.PhotoStimulation.insert1(
             {'subject_id':subject_id,
              'session_time': date_of_experiment,
              'photostim_datetime': date_of_experiment,
              'photo_stim_id':opto_site_name,
              'photostim_timeseries': photostim_data,
-             'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
+             'photostim_start_time': photostim_timestamps[0],
+             'photostim_sampling_rate': 1/np.mean(np.diff(photostim_timestamps))},skip_duplicates=True) 
 
     # -- finish manual ingestion for this file
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
 
-# -- Intracellular
-acquisition.IntracellularAcquisition.populate()
-# -- Behavioral
-acquisition.BehaviorAcquisition.populate()
+## -- Intracellular
+#acquisition.IntracellularAcquisition.populate()
+## -- Behavioral
+#acquisition.BehaviorAcquisition.populate()

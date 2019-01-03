@@ -11,6 +11,7 @@ import re
 import h5py as h5
 import numpy as np
 os.chdir('..')
+
 import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation
 from pipeline import utilities
@@ -156,7 +157,9 @@ for fname in fnames:
         key['stop_time'] = stop_times[idx]
         # ======== Now add trial descriptors ====
         # search through all keyword in trial descriptor tags (keywords are not in fixed order)
+        is_early_lick = False  # if a trial response is 'early lick', then it does not matter if that trial is a correct or incorrect lick anymore
         for tag in tags[idx]:
+            print(tag)
             # good/bad
             key['trial_is_good'] = (re.match('good', tag, re.I) is not None)
             # stim/no-stim
@@ -165,9 +168,13 @@ for fname in fnames:
             m = re.match('Hit|Err|NoLick',tag)
             key['trial_type'] = 'non-performing' if (m is None) else trial_type_choices[tag[m.end()]]
             # trial response type: correct, incorrect, early lick, no response
-            if not ('trial_response' in key) or (key['trial_response'] != 'early lick'):
+            if not is_early_lick:
                 m = re.match('Hit|Err|NoLick|LickEarly',tag)
-                key['trial_response'] = 'N/A' if (m is None) else trial_resp_choices[m.group()]
+                if m is None:
+                    key['trial_response'] = 'N/A'
+                else: 
+                    trial_resp_choices[m.group()]
+                    is_early_lick = True if m.group() == 'LickEarly' else False
             # photo stim type: stimulation, inhibition, or N/A (for non-stim trial)
             m = re.match('PhotoStimulation|PhotoInhibition', tag, re.I)
             key['photo_stim_type'] = 'N/A' if (m is None) else m.group().replace('Photo','').lower()
@@ -298,15 +305,17 @@ for fname in fnames:
 
     # -- PhotoStimulation 
     # only 1 photostim per session, perform at the same time with session
-    photostim_data = np.array(nwb['stimulus']['presentation']['photostimulus']['data'])
-    photostim_timestamps = np.array(nwb['stimulus']['presentation']['photostimulus']['timestamps'])   
-    acquisition.PhotoStimulation.insert1(
-            {'subject_id':subject_id,
-             'session_time': date_of_experiment,
-             'photostim_datetime': date_of_experiment,
-             'photo_stim_id':opto_site_name,
-             'photostim_timeseries': photostim_data,
-             'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
+    photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
+    photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value   
+    # if the dataset does not contain photostim timeseries, skip
+    if isinstance(photostim_data,np.ndarray):
+        acquisition.PhotoStimulation.insert1(
+                {'subject_id':subject_id,
+                 'session_time': date_of_experiment,
+                 'photostim_datetime': date_of_experiment,
+                 'photo_stim_id':opto_site_name,
+                 'photostim_timeseries': photostim_data,
+                 'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
 
     # -- finish manual ingestion for this file
     nwb.close()
