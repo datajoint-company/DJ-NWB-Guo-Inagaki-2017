@@ -330,7 +330,14 @@ for fname in fnames:
 
 # ====================== Starting import and compute procedure ======================
 
-## -- Intracellular
-#acquisition.IntracellularAcquisition.populate()
-## -- Behavioral
-#acquisition.BehaviorAcquisition.populate()
+# -- Intracellular
+acquisition.IntracellularAcquisition.populate()
+# -- Behavioral
+acquisition.BehaviorAcquisition.populate()
+# -- Perform trial segmentation
+analysis.TrialSegmentedBehavior.populate()
+analysis.TrialSegmentedIntracellular.populate()
+analysis.TrialSegmentedPhotoStimulus.populate()
+
+
+

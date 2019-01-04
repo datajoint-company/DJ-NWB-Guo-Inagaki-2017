@@ -182,10 +182,8 @@ class TrialSegmentedPhotoStimulus(dj.Computed):
         aligned_events = np.round(aligned_events, 6)  # ensure float with atmost 6 decimal places
         events_dict = dict(zip(['trial_start','trial_stop','cue_start','cue_end','pole_in','pole_out'], aligned_events))
         RealignedEvent.insert1(events_dict, skip_duplicates=True)
-        self.insert1({**key, **events_dict}) 
-        
-        # insert
-        self.LickTrace.insert1(dict(key, segmented_photostim = segmented_photostim))
+        self.insert1( dict({**key, **events_dict}, segmented_photostim = segmented_photostim)) 
+
         print(f'Perform trial-segmentation of photostim for trial: {key["trial_id"]}')
     
     
@@ -213,6 +211,11 @@ class TrialSegmentedUnitSpikeTimes(dj.Computed):
             except Exception as e:
                 print(f'Error extracting event type: {event_name}\n\tMsg: {str(e)}')
                 return
+        # handling the case where the event-of-interest is NaN
+        if np.isnan(event_time_point) or event_time_point is None:
+            print(f'Invalid event time (NaN) for unit: {key["unit_id"]} and trial: {key["trial_id"]}')
+            return
+            
         # check if pre/post stim dur is within start/stop time
         trial_start, trial_stop = (acquisition.TrialSet.Trial & key).fetch1('start_time','stop_time')
         if event_time_point - pre_stim_dur < trial_start:
@@ -248,6 +251,10 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
             except Exception as e:
                 print(f'Error extracting event type: {event_name}\n\tMsg: {str(e)}')
                 return
+        # handling the case where the event-of-interest is NaN
+        if np.isnan(event_time_point) or event_time_point is None:
+            print(f'Invalid event time (NaN)')
+            return
         # check if pre/post stim dur is within start/stop time
         trial_start, trial_stop = (acquisition.TrialSet.Trial & trial_key).fetch1('start_time','stop_time')
         if event_time_point - pre_stim_dur < trial_start:

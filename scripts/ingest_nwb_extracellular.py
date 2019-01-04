@@ -324,3 +324,7 @@ for fname in fnames:
     # -- finish manual ingestion for this file
     nwb.close()
 
+# ====================== Starting import and compute procedure ======================
+
+# -- UnitSpikeTimes trial-segmentation
+analysis.TrialSegmentedUnitSpikeTimes.populate()
