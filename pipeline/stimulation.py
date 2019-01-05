@@ -26,17 +26,14 @@ class PhotoStimDevice(dj.Lookup):
 @schema
 class PhotoStimulationInfo(dj.Manual):
    definition = """
-   photo_stim_id: varchar(8)
-   ---
    -> reference.ActionLocation
    -> PhotoStimDevice
-   photo_stim_excitation_lambdas = null:      float        # (nm) excitation wavelength
+   photo_stim_excitation_lambda: decimal(6,2)    # (nm) excitation wavelength
+   ---
    photo_stim_method = 'laser' : enum('fiber', 'laser')
-   photo_stim_period = '':                  varchar(24)  # period during the trial
-   photo_stim_relative_location = '':       varchar(24)  # stimulus location relative to the recording.
-   photo_stim_act_type = '':                varchar(24)  # excitation or inihibition
    photo_stim_duration = null:                float        # in ms, stimulus duration
    photo_stim_shape = '':                   varchar(24)  # shape of photostim, cosine or pulsive
    photo_stim_freq = null:                    float        # in Hz, frequency of photostimulation
    photo_stim_notes = '':                varchar(128)
    """  
+

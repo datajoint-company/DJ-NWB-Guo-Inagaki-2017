@@ -20,10 +20,11 @@ schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_analysis')
 class TrialSegmentationSetting(dj.Lookup):
     definition = """ 
     event: varchar(16)
-    pre_stim_duration: float  # (in second) pre-stimulus duration
-    post_stim_duration: float  # (in second) post-stimulus duration
+    pre_stim_duration: decimal(4,2)  # (in second) pre-stimulus duration
+    post_stim_duration: decimal(4,2)  # (in second) post-stimulus duration
     """
     contents = [['pole_out_time', 1.5, 3]]
+    
     
 @schema
 class RealignedEvent(dj.Manual):
@@ -255,6 +256,9 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
         if np.isnan(event_time_point) or event_time_point is None:
             print(f'Invalid event time (NaN)')
             return
+        #
+        pre_stim_dur = float(pre_stim_dur)
+        post_stim_dur = float(post_stim_dur)
         # check if pre/post stim dur is within start/stop time
         trial_start, trial_stop = (acquisition.TrialSet.Trial & trial_key).fetch1('start_time','stop_time')
         if event_time_point - pre_stim_dur < trial_start:

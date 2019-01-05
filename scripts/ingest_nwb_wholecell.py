@@ -7,7 +7,7 @@ Created on Mon Dec  3 16:22:42 2018
 from datetime import datetime
 import os
 import re
-
+os.chdir('..')
 import h5py as h5
 import numpy as np
 
@@ -220,8 +220,10 @@ for fname in fnames:
     brain_region = re.split(',\s?',ie_location)[-1]
     coord_ap_ml_dv = re.findall('\d+.\d+',ie_location)
     
+    # hemisphere: left-hemisphere is ipsi, so anything contra is right
+    brain_region, hemi = utilities.get_brain_hemisphere(brain_region)
+        
     # -- BrainLocation
-    hemi = 'left' # this whole study is on left hemi
     reference.BrainLocation.insert1(
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
@@ -272,8 +274,10 @@ for fname in fnames:
     brain_region = splittedstr[0]
     coord_ap_ml_dv = re.findall('\d+.\d+',splittedstr[-1])
     
+    # hemisphere: left-hemisphere is ipsi, so anything contra is right
+    brain_region, hemi = utilities.get_brain_hemisphere(brain_region)
+        
     # -- BrainLocation
-    hemi = 'left' # this whole study is on left hemi
     reference.BrainLocation.insert1(
             {'brain_region': brain_region,
              'brain_subregion':'N/A',
@@ -299,8 +303,7 @@ for fname in fnames:
     # -- PhotoStimulationInfo
     opto_excitation_lambda = re.search("\d+", opto_excitation_lambda).group()
     stimulation.PhotoStimulationInfo.insert1(
-            {'photo_stim_id':opto_site_name,
-             'brain_region': brain_region,
+            {'brain_region': brain_region,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
              'hemisphere': hemi,
@@ -309,8 +312,8 @@ for fname in fnames:
              'coordinate_ml':float(coord_ap_ml_dv[1]),
              'coordinate_dv':float(coord_ap_ml_dv[2]),
              'device_name':stim_device,
-             'photo_stim_excitation_lambdas': float(opto_excitation_lambda),
-             'photo_stim_notes':opto_descs,},skip_duplicates=True)          
+             'photo_stim_excitation_lambda': float(opto_excitation_lambda),
+             'photo_stim_notes':(f'{opto_site_name} - {opto_descs}')},skip_duplicates=True)          
 
     # -- PhotoStimulation 
     # only 1 photostim per session, perform at the same time with session
@@ -320,7 +323,16 @@ for fname in fnames:
             {'subject_id':subject_id,
              'session_time': date_of_experiment,
              'photostim_datetime': date_of_experiment,
-             'photo_stim_id':opto_site_name,
+             'brain_region': brain_region,
+             'brain_subregion':'N/A',
+             'cortical_layer': 'N/A',
+             'hemisphere': hemi,
+             'coordinate_ref': coordinate_ref,
+             'coordinate_ap':float(coord_ap_ml_dv[0]),
+             'coordinate_ml':float(coord_ap_ml_dv[1]),
+             'coordinate_dv':float(coord_ap_ml_dv[2]),
+             'device_name':stim_device,
+             'photo_stim_excitation_lambda': float(opto_excitation_lambda),
              'photostim_timeseries': photostim_data,
              'photostim_start_time': photostim_timestamps[0],
              'photostim_sampling_rate': 1/np.mean(np.diff(photostim_timestamps))},skip_duplicates=True) 

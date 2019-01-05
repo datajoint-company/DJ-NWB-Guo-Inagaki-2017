@@ -205,6 +205,10 @@ for fname in fnames:
     electrodes = nwb['general']['extracellular_ephys']['electrodes']
     probe_placement_brain_loc = electrodes[0][5].decode('UTF-8')  # get probe placement from 0th electrode (should be the same for all electrodes)
     probe_placement_brain_loc = re.search("(?<=\[\')(.*)(?=\'\])",probe_placement_brain_loc).group()
+    
+    # hemisphere: left-hemisphere is ipsi, so anything contra is right
+    brain_region, hemi = utilities.get_brain_hemisphere(probe_placement_brain_loc)
+    
     # -- Probe
     reference.Probe.insert1(
             {'probe_name' : device_names[0], 
@@ -220,7 +224,6 @@ for fname in fnames:
                  'channel_z_pos' : electrode[3],
                  'shank_id' : shank_id},skip_duplicates=True)
     # -- BrainLocation
-    hemi = 'left' # this whole study is on left hemi
     reference.BrainLocation.insert1(
             {'brain_region': probe_placement_brain_loc,
              'brain_subregion':'N/A',
@@ -266,6 +269,9 @@ for fname in fnames:
 
     brain_region = re.search('(?<=atlas location:\s)(.*)', opto_location).group()
     
+    # hemisphere: left-hemisphere is ipsi, so anything contra is right
+    brain_region, hemi = utilities.get_brain_hemisphere(brain_region)
+    
     # if no brain region (NA, or N/A, or ' '), skip photostim insert
     if re.search('\s+|N/?A', brain_region) is None:
         
@@ -273,7 +279,6 @@ for fname in fnames:
         coord_ap_ml_dv = re.split(',',coord_ap_ml_dv)
 
         # -- BrainLocation
-        hemi = 'left' # this whole study is on left hemi
         reference.BrainLocation.insert1(
                 {'brain_region': brain_region,
                  'brain_subregion':'N/A',
@@ -294,18 +299,17 @@ for fname in fnames:
             
         # -- PhotoStimulationInfo
         stimulation.PhotoStimulationInfo.insert1(
-                {'photo_stim_id' : opto_site_name,
-                 'brain_region' : brain_region,
-                 'brain_subregion' :'N/A',
-                 'cortical_layer' : 'N/A',
-                 'hemisphere' : hemi,
-                 'coordinate_ref' : coordinate_ref,
-                 'coordinate_ap' : float(coord_ap_ml_dv[0]),
-                 'coordinate_ml' : float(coord_ap_ml_dv[1]),
-                 'coordinate_dv' : float(coord_ap_ml_dv[2]),
-                 'device_name' : stim_device,
-                 'photo_stim_excitation_lambdas' : float(opto_excitation_lambda),
-                 'photo_stim_notes': opto_descs},skip_duplicates=True)          
+                {'brain_region': brain_region,
+                 'brain_subregion':'N/A',
+                 'cortical_layer': 'N/A',
+                 'hemisphere': hemi,
+                 'coordinate_ref': coordinate_ref,
+                 'coordinate_ap':float(coord_ap_ml_dv[0]),
+                 'coordinate_ml':float(coord_ap_ml_dv[1]),
+                 'coordinate_dv':float(coord_ap_ml_dv[2]),
+                 'device_name':stim_device,
+                 'photo_stim_excitation_lambda': float(opto_excitation_lambda),
+                 'photo_stim_notes':f'{opto_site_name} - {opto_descs}'},skip_duplicates=True)          
     
         # -- PhotoStimulation 
         # only 1 photostim per session, perform at the same time with session
@@ -317,9 +321,19 @@ for fname in fnames:
                     {'subject_id':subject_id,
                      'session_time': date_of_experiment,
                      'photostim_datetime': date_of_experiment,
-                     'photo_stim_id':opto_site_name,
+                     'brain_region': brain_region,
+                     'brain_subregion':'N/A',
+                     'cortical_layer': 'N/A',
+                     'hemisphere': hemi,
+                     'coordinate_ref': coordinate_ref,
+                     'coordinate_ap':float(coord_ap_ml_dv[0]),
+                     'coordinate_ml':float(coord_ap_ml_dv[1]),
+                     'coordinate_dv':float(coord_ap_ml_dv[2]),
+                     'device_name':stim_device,
+                     'photo_stim_excitation_lambda': float(opto_excitation_lambda),
                      'photostim_timeseries': photostim_data,
-                     'photostim_time_stamps': photostim_timestamps},skip_duplicates=True) 
+                     'photostim_start_time': photostim_timestamps[0],
+                     'photostim_sampling_rate': 1/np.mean(np.diff(photostim_timestamps))},skip_duplicates=True) 
 
     # -- finish manual ingestion for this file
     nwb.close()

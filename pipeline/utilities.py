@@ -65,4 +65,14 @@ def find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment):
             print(f'Found datafile: {sess_data_file}')
             return sess_data_file
  
+       
+def get_brain_hemisphere(brain_region):
+    # hemisphere: left-hemisphere is ipsi, so anything contra is right
+    if re.search('Contra\s?', brain_region) is not None:
+        hemi = 'right'
+        brain_region = re.sub('Contra\s?', '', brain_region)
+    else:
+        hemi = 'left'
+    return brain_region, hemi
+        
         
