@@ -252,7 +252,7 @@ class UnitSpikeTimes(dj.Imported):
             key['channel_id'] = ec_event_waveform.get(unit_str).get('electrode_idx').value.item(0) - 1  # TODO: check if electrode_idx has MATLAB 1-based indexing (starts at 1)
             key['spike_times'] = ec_unit_times.get(unit_str).get('times').value
             key['unit_cell_type'] = cell_type[unit_str]
-            key.update((('unit_depth_x','unit_depth_y','unit_depth_z'),unit_depth))
+            key.update(zip(('unit_depth_x','unit_depth_y','unit_depth_z'),unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
             self.insert1(key)
             print(f'{unit_id} ',end="")
@@ -281,14 +281,12 @@ class TrialSet(dj.Imported):
         trial_is_good: bool  # is this a good or bad trial
         """
         
-    class CuePoleTiming(dj.Part):
+    class EventTime(dj.Part):
         definition = """ # experimental paradigm event timing marker(s) for this trial
         -> master.Trial
+        -> reference.ExperimentalEvent.proj(trial_event="event")
         ---
-        cue_start_time = null: float   # (in second) cue onset of this trial (auditory cue), with respect to this session's start time
-        cue_end_time = null: float     # (in second) cue end of this trial, with respect to this session's start time
-        pole_in_time = null: float     # (in second) the start of sample period for each trial (e.g. the onset of pole motion towards the exploration area), relative to session start time
-        pole_out_time = null: float    # (in second) the end of the sample period (e.g. the onset of pole motion away from the exploration area), relative to session start time
+        event_time = null: float   # (in second) event time with respect to this session's start time
         """
 
     def make(self,key):

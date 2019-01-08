@@ -7,7 +7,7 @@ Created on Mon Dec  3 16:22:42 2018
 from datetime import datetime
 import os
 import re
-
+os.chdir('..')
 import h5py as h5
 import numpy as np
 
@@ -181,12 +181,18 @@ for fname in fnames:
         acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
         # ======== Now add trial event timing to the TrialInfo part table ====
         # -- events timing
-        key['cue_start_time'] = auditory_cue[idx]
-        key['cue_end_time'] = key['cue_start_time'] + cue_duration  # hard-coded here for cue_end_time
-        key['pole_in_time'] = pole_in_times[idx]
-        key['pole_out_time'] = pole_out_times[idx]            
-        # insert
-        acquisition.TrialSet.CuePoleTiming.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_start', event_time = start_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_stop', event_time = stop_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='cue_start', event_time = auditory_cue[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='cue_end', event_time = auditory_cue[idx] + cue_duration),  
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)  # hard-coded cue_end time here 
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_in', event_time = pole_in_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_out', event_time = pole_out_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)          
         # ======== Now add trial stimulation descriptors to the TrialStimInfo table ====
         key['photo_stim_period'] = 'N/A' if trial_type_mat[-5,idx] == 0 else photostim_period_choices[trial_type_mat[-5,idx]]
         key['photo_stim_power'] = trial_type_mat[-4,idx]
@@ -340,5 +346,7 @@ for fname in fnames:
 
 # ====================== Starting import and compute procedure ======================
 
+# -- Ingest unit spike times
+acquisition.UnitSpikeTimes.populate()
 # -- UnitSpikeTimes trial-segmentation
 analysis.TrialSegmentedUnitSpikeTimes.populate()

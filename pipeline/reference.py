@@ -153,6 +153,14 @@ class WhiskerConfig(dj.Lookup):
        
     
 @schema
+class ExperimentalEvent(dj.Lookup):
+    definition = """ # Experimental paradigm events of this study
+    event: varchar(32)    
+    """
+    contents = zip(['trial_start', 'trial_stop', 'cue_start', 'cue_end', 'pole_in', 'pole_out'])
+    
+    
+@schema
 class TrialType(dj.Lookup):
     definition = """ # The experimental type of this trial, e.g. Lick Left vs Lick Right
     trial_type: varchar(32)

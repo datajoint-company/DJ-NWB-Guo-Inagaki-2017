@@ -194,14 +194,20 @@ for fname in fnames:
         key['trial_response'] = trial_response.lower()
         # insert
         acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        # ======== Now add trial event timing to the TrialInfo part table ====
+        # ======== Now add trial event timing to the EventTime part table ====
         # -- events timing
-        key['cue_start_time'] = cue_start_times[idx]
-        key['cue_end_time'] = cue_end_times[idx]
-        key['pole_in_time'] = pole_in_times[idx]
-        key['pole_out_time'] = pole_out_times[idx]            
-        # insert
-        acquisition.TrialSet.CuePoleTiming.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_start', event_time = start_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_stop', event_time = stop_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)        
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='cue_start', event_time = cue_start_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='cue_end', event_time = cue_end_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_in', event_time = pole_in_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_out', event_time = pole_out_times[idx]),
+                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
         print(f'{trial_id} ',end="")
     print('')
 
@@ -350,6 +356,4 @@ acquisition.BehaviorAcquisition.populate()
 analysis.TrialSegmentedBehavior.populate()
 analysis.TrialSegmentedIntracellular.populate()
 analysis.TrialSegmentedPhotoStimulus.populate()
-
-
 
