@@ -20,9 +20,7 @@ class ExperimentType(dj.Lookup):
     definition = """
     experiment_type: varchar(64)
     """
-    contents = [
-        ['behavior'], ['extracelluar'], ['photostim']
-    ]
+    contents = [['behavior'], ['extracelluar'], ['photostim']]
 
 
 @schema
@@ -60,8 +58,8 @@ class BehaviorAcquisition(dj.Imported):
         ---
         lick_trace_left: longblob   
         lick_trace_right: longblob
-        lick_trace_start_time: float # first timepoint of lick trace recording
-        lick_trace_sampling_rate: float # sampling rate of lick trace recording
+        lick_trace_start_time: float # (s) first timepoint of lick trace recording
+        lick_trace_sampling_rate: float # (Hz) sampling rate of lick trace recording
         """       
         
     def make(self,key):
@@ -98,9 +96,9 @@ class PhotoStimulation(dj.Manual):
     photostim_datetime: varchar(36) # the time of performing this stimulation with respect to start time of the session, in the scenario of multiple stimulations per session
     ---
     -> stimulation.PhotoStimulationInfo
-    photostim_timeseries: longblob
-    photostim_start_time: float # first timepoint of photostim recording
-    photostim_sampling_rate: float # sampling rate of photostim recording
+    photostim_timeseries=null: longblob  # (mW)
+    photostim_start_time=null: float  # (s) first timepoint of photostim recording
+    photostim_sampling_rate=null: float  # (Hz) sampling rate of photostim recording
     """    
 
 
@@ -126,10 +124,10 @@ class IntracellularAcquisition(dj.Imported):
         definition = """
         -> master
         ---
-        membrane_potential: longblob    # Membrane potential recording at this cell
-        membrane_potential_wo_spike: longblob # membrane potential without spike data, derived from membrane potential recording    
-        membrane_potential_start_time: float # first timepoint of membrane potential recording
-        membrane_potential_sampling_rate: float # sampling rate of membrane potential recording
+        membrane_potential: longblob    # (mV) membrane potential recording at this cell
+        membrane_potential_wo_spike: longblob # (mV) membrane potential without spike data, derived from membrane potential recording    
+        membrane_potential_start_time: float # (s) first timepoint of membrane potential recording
+        membrane_potential_sampling_rate: float # (Hz) sampling rate of membrane potential recording
         """
         
     class CurrentInjection(dj.Part):
@@ -137,8 +135,8 @@ class IntracellularAcquisition(dj.Imported):
         -> master
         ---
         current_injection: longblob
-        current_injection_start_time: float # first timepoint of current injection recording
-        current_injection_sampling_rate: float # sampling rate of current injection recording
+        current_injection_start_time: float  # first timepoint of current injection recording
+        current_injection_sampling_rate: float  # (Hz) sampling rate of current injection recording
         """
         
     def make(self,key):
@@ -194,9 +192,9 @@ class ExtracellularAcquisition(dj.Imported):
         definition = """
         -> master
         ---
-        voltage: longblob   # (in mV)
-        voltage_start_time: float # (in second) first timepoint of voltage recording
-        voltage_sampling_rate: float # (in Hz) sampling rate of voltage recording
+        voltage: longblob   # (mV)
+        voltage_start_time: float # (second) first timepoint of voltage recording
+        voltage_sampling_rate: float # (Hz) sampling rate of voltage recording
         """
         
     def make(self,key):
@@ -211,11 +209,11 @@ class UnitSpikeTimes(dj.Imported):
     unit_id : smallint
     ---
     -> reference.Probe.Channel
-    spike_times: longblob  # (in second) time of each spike, with respect to the start of session 
+    spike_times: longblob  # (s) time of each spike, with respect to the start of session 
     unit_cell_type: varchar(32)  # e.g. cell-type of this unit (e.g. wide width, narrow width spiking)
-    unit_depth_x: float  # (in mm)
-    unit_depth_y: float  # (in mm)
-    unit_depth_z: float  # (in mm)
+    unit_x: float  # (mm)
+    unit_y: float  # (mm)
+    unit_z: float  # (mm)
     spike_waveform: longblob  # waveform(s) of each spike at each spike time (spike_time x waveform_timestamps)
     """
         
@@ -252,7 +250,7 @@ class UnitSpikeTimes(dj.Imported):
             key['channel_id'] = ec_event_waveform.get(unit_str).get('electrode_idx').value.item(0) - 1  # TODO: check if electrode_idx has MATLAB 1-based indexing (starts at 1)
             key['spike_times'] = ec_unit_times.get(unit_str).get('times').value
             key['unit_cell_type'] = cell_type[unit_str]
-            key.update(zip(('unit_depth_x','unit_depth_y','unit_depth_z'),unit_depth))
+            key.update(zip(('unit_x','unit_y','unit_z'),unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
             self.insert1(key)
             print(f'{unit_id} ',end="")
@@ -301,10 +299,10 @@ class TrialStimInfo(dj.Imported):
     ---
     photo_stim_type: enum('stimulation','inhibition','N/A')
     photo_stim_period: enum('sample','delay','response','N/A')
-    photo_stim_power: float  # (in mW) stimulation power 
-    photo_loc_galvo_x: float  # (in mm) photostim coordinates field 
-    photo_loc_galvo_y: float  # (in mm) photostim coordinates field 
-    photo_loc_galvo_z: float  # (in mm) photostim coordinates field 
+    photo_stim_power: float  # (mW) stimulation power 
+    photo_loc_galvo_x: float  # (mm) photostim coordinates field 
+    photo_loc_galvo_y: float  # (mm) photostim coordinates field 
+    photo_loc_galvo_z: float  # (mm) photostim coordinates field 
     """    
     
     def make(self,key):

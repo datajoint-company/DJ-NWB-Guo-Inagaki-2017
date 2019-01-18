@@ -85,7 +85,7 @@ for fname in fnames:
     experimenter = np.array(nwb['general']['experimenter'])
     institution = nwb['general']['institution'].value
     related_publications = nwb['general']['related_publications'].value.decode('UTF-8') 
-    #session_id = nwb['general']['session_id'].value
+    # session_id = nwb['general']['session_id'].value
     surgery = nwb['general']['surgery'].value.decode('UTF-8')
     identifier = nwb['identifier'].value
     nwb_version = nwb['nwb_version'].value
@@ -150,35 +150,40 @@ for fname in fnames:
     
     # loop through each trial and insert
     for idx, trial_id in enumerate(trial_names):
-        trial_id = int(re.search('(\d+)',trial_id).group())
+        trial_id = int(re.search('(\d+)', trial_id).group())
         key['trial_id'] = trial_id
         # -- start/stop time
         key['start_time'] = start_times[idx]
         key['stop_time'] = stop_times[idx]
         # ======== Now add trial descriptors ====
         # search through all keyword in trial descriptor tags (keywords are not in fixed order)
-        is_early_lick = False  # if a trial response is 'early lick', then it does not matter if that trial is a correct or incorrect lick anymore
+        tag_key = {}
+        tag_key['trial_is_good'] = False
+        tag_key['trial_stim_present'] = True
+        tag_key['trial_type'] = 'non-performing'
+        tag_key['trial_response'], tag_key['photo_stim_type'] = 'N/A', 'N/A'
         for tag in tags[idx]:
             # good/bad
-            key['trial_is_good'] = (re.match('good', tag, re.I) is not None)
+            if not tag_key['trial_is_good']:
+                tag_key['trial_is_good'] = (re.match('good', tag, re.I) is not None)
             # stim/no-stim
-            key['trial_stim_present'] = (re.match('non-stimulation',tag,re.I) is None)
+            if tag_key['trial_stim_present']:
+                tag_key['trial_stim_present'] = (re.match('non-stimulation', tag, re.I) is None)
             # trial type: left/right lick
-            m = re.match('Hit|Err|NoLick',tag)
-            key['trial_type'] = 'non-performing' if (m is None) else trial_type_choices[tag[m.end()]]
+            if tag_key['trial_type'] == 'non-performing':
+                m = re.match('Hit|Err|NoLick', tag)
+                tag_key['trial_type'] = 'non-performing' if (m is None) else trial_type_choices[tag[m.end()]]
             # trial response type: correct, incorrect, early lick, no response
-            if not is_early_lick:
-                m = re.match('Hit|Err|NoLick|LickEarly',tag)
-                if m is None:
-                    key['trial_response'] = 'N/A'
-                else: 
-                    trial_resp_choices[m.group()]
-                    is_early_lick = True if m.group() == 'LickEarly' else False
+            if tag_key['trial_response'] == 'N/A' or tag_key['trial_response'] != 'early lick':
+                m = re.match('Hit|Err|NoLick|LickEarly', tag)
+                if m: m.group()
+                tag_key['trial_response'] = trial_resp_choices[m.group()] if m else tag_key['trial_response']
             # photo stim type: stimulation, inhibition, or N/A (for non-stim trial)
-            m = re.match('PhotoStimulation|PhotoInhibition', tag, re.I)
-            key['photo_stim_type'] = 'N/A' if (m is None) else m.group().replace('Photo','').lower()
+            if tag_key['photo_stim_type'] == 'N/A':
+                m = re.match('PhotoStimulation|PhotoInhibition', tag, re.I)
+                tag_key['photo_stim_type'] = 'N/A' if (m is None) else m.group().replace('Photo','').lower()
         # insert
-        acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
+        acquisition.TrialSet.Trial.insert1({**key, **tag_key}, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
         # ======== Now add trial event timing to the TrialInfo part table ====
         # -- events timing
         acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_start', event_time = start_times[idx]),
@@ -194,14 +199,14 @@ for fname in fnames:
         acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_out', event_time = pole_out_times[idx]),
                                                ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)          
         # ======== Now add trial stimulation descriptors to the TrialStimInfo table ====
-        key['photo_stim_period'] = 'N/A' if trial_type_mat[-5,idx] == 0 else photostim_period_choices[trial_type_mat[-5,idx]]
-        key['photo_stim_power'] = trial_type_mat[-4,idx]
-        key['photo_loc_galvo_x'] = trial_type_mat[-3,idx]
-        key['photo_loc_galvo_y'] = trial_type_mat[-2,idx]
-        key['photo_loc_galvo_z'] = trial_type_mat[-1,idx]
+        key['photo_stim_period'] = 'N/A' if trial_type_mat[-5, idx] == 0 else photostim_period_choices[trial_type_mat[-5, idx]]
+        key['photo_stim_power'] = trial_type_mat[-4, idx]
+        key['photo_loc_galvo_x'] = trial_type_mat[-3, idx]
+        key['photo_loc_galvo_y'] = trial_type_mat[-2, idx]
+        key['photo_loc_galvo_z'] = trial_type_mat[-1, idx]
         # insert
         acquisition.TrialStimInfo.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        print(f'{trial_id} ',end="")
+        print(f'{trial_id} ', end="")
     print('')
 
     # ==================== Extracellular ====================
@@ -218,7 +223,7 @@ for fname in fnames:
     # -- Probe
     reference.Probe.insert1(
             {'probe_name' : device_names[0], 
-             'channel_counts' : len(electrodes) },skip_duplicates=True)
+             'channel_counts' : len(electrodes) }, skip_duplicates=True)
     for electrode in electrodes:       
         shank_id = electrode[-2].decode('UTF-8')
         shank_id = int(re.search('\d+',shank_id).group())
@@ -228,13 +233,13 @@ for fname in fnames:
                  'channel_x_pos' : electrode[1],
                  'channel_y_pos' : electrode[2],
                  'channel_z_pos' : electrode[3],
-                 'shank_id' : shank_id},skip_duplicates=True)
+                 'shank_id' : shank_id}, skip_duplicates=True)
     # -- BrainLocation
     reference.BrainLocation.insert1(
             {'brain_region': probe_placement_brain_loc,
              'brain_subregion':'N/A',
              'cortical_layer': 'N/A',
-             'hemisphere': hemi},skip_duplicates=True)
+             'hemisphere': hemi}, skip_duplicates=True)
     # -- ActionLocation
     ground_coordinates = nwb['general']['extracellular_ephys']['ground_coordinates'].value  # using 'ground_coordinates' here as the x, y, z for where the probe is placed in the brain, TODO double check if this is correct
     coordinate_ref = 'bregma' 
@@ -289,7 +294,7 @@ for fname in fnames:
                 {'brain_region': brain_region,
                  'brain_subregion':'N/A',
                  'cortical_layer': 'N/A',
-                 'hemisphere': hemi},skip_duplicates=True)
+                 'hemisphere': hemi}, skip_duplicates=True)
         
         # -- ActionLocation
         coordinate_ref = 'bregma' # double check!!
@@ -301,7 +306,7 @@ for fname in fnames:
                  'coordinate_ref': coordinate_ref,
                  'coordinate_ap': float(coord_ap_ml_dv[0]),
                  'coordinate_ml': float(coord_ap_ml_dv[1]),
-                 'coordinate_dv': float(coord_ap_ml_dv[2])},skip_duplicates=True)
+                 'coordinate_dv': float(coord_ap_ml_dv[2])}, skip_duplicates=True)
             
         # -- PhotoStimulationInfo
         stimulation.PhotoStimulationInfo.insert1(
@@ -315,31 +320,35 @@ for fname in fnames:
                  'coordinate_dv':float(coord_ap_ml_dv[2]),
                  'device_name':stim_device,
                  'photo_stim_excitation_lambda': float(opto_excitation_lambda),
-                 'photo_stim_notes':f'{opto_site_name} - {opto_descs}'},skip_duplicates=True)          
+                 'photo_stim_notes':f'{opto_site_name} - {opto_descs}'}, skip_duplicates=True)
     
         # -- PhotoStimulation 
         # only 1 photostim per session, perform at the same time with session
         photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
         photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value   
-        # if the dataset does not contain photostim timeseries, skip
-        if isinstance(photostim_data,np.ndarray):
-            acquisition.PhotoStimulation.insert1(
-                    {'subject_id':subject_id,
-                     'session_time': date_of_experiment,
-                     'photostim_datetime': date_of_experiment,
-                     'brain_region': brain_region,
-                     'brain_subregion':'N/A',
-                     'cortical_layer': 'N/A',
-                     'hemisphere': hemi,
-                     'coordinate_ref': coordinate_ref,
-                     'coordinate_ap':float(coord_ap_ml_dv[0]),
-                     'coordinate_ml':float(coord_ap_ml_dv[1]),
-                     'coordinate_dv':float(coord_ap_ml_dv[2]),
-                     'device_name':stim_device,
-                     'photo_stim_excitation_lambda': float(opto_excitation_lambda),
-                     'photostim_timeseries': photostim_data,
-                     'photostim_start_time': photostim_timestamps[0],
-                     'photostim_sampling_rate': 1/np.mean(np.diff(photostim_timestamps))},skip_duplicates=True) 
+        # if the dataset does not contain photostim timeseries set to None
+        photostim_data = None if not isinstance(photostim_data, np.ndarray) else photostim_data
+        photostim_timestamps = None if not isinstance(photostim_timestamps, np.ndarray) else photostim_timestamps
+        photostim_start_time = None if not isinstance(photostim_timestamps, np.ndarray) else photostim_timestamps[0]
+        photostim_sampling_rate = None if not isinstance(photostim_timestamps, np.ndarray) else 1/np.mean(np.diff(photostim_timestamps))
+            
+        acquisition.PhotoStimulation.insert1(
+                {'subject_id':subject_id,
+                 'session_time': date_of_experiment,
+                 'photostim_datetime': date_of_experiment,
+                 'brain_region': brain_region,
+                 'brain_subregion':'N/A',
+                 'cortical_layer': 'N/A',
+                 'hemisphere': hemi,
+                 'coordinate_ref': coordinate_ref,
+                 'coordinate_ap':float(coord_ap_ml_dv[0]),
+                 'coordinate_ml':float(coord_ap_ml_dv[1]),
+                 'coordinate_dv':float(coord_ap_ml_dv[2]),
+                 'device_name':stim_device,
+                 'photo_stim_excitation_lambda': float(opto_excitation_lambda),
+                 'photostim_timeseries': photostim_data,
+                 'photostim_start_time': photostim_start_time,
+                 'photostim_sampling_rate': photostim_sampling_rate}, skip_duplicates=True) 
 
     # -- finish manual ingestion for this file
     nwb.close()

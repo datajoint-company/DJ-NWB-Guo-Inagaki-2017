@@ -20,8 +20,8 @@ schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_analysis')
 class TrialSegmentationSetting(dj.Lookup):
     definition = """ 
     -> reference.ExperimentalEvent
-    pre_stim_duration: decimal(4,2)  # (in second) pre-stimulus duration
-    post_stim_duration: decimal(4,2)  # (in second) post-stimulus duration
+    pre_stim_duration: decimal(4,2)  # (s) pre-stimulus duration
+    post_stim_duration: decimal(4,2)  # (s) post-stimulus duration
     """
     contents = [['pole_out', 1.5, 3]]
     
@@ -61,8 +61,6 @@ class TrialSegmentedExtracellular(dj.Computed):
     -> acquisition.ExtracellularAcquisition
     -> acquisition.TrialSet.Trial
     -> TrialSegmentationSetting
-    ---
-    -> RealignedEvent
     """
     
     class Voltage(dj.Part):
@@ -71,6 +69,10 @@ class TrialSegmentedExtracellular(dj.Computed):
         ---
         segmented_voltage: longblob   
         """
+        
+    def make(self, key):
+        # make() implementation goes here
+        return
     
     
 @schema
@@ -79,8 +81,6 @@ class TrialSegmentedIntracellular(dj.Computed):
     -> acquisition.IntracellularAcquisition
     -> acquisition.TrialSet.Trial
     -> TrialSegmentationSetting
-    ---
-    -> RealignedEvent
     """
     
     class MembranePotential(dj.Part):
@@ -98,31 +98,27 @@ class TrialSegmentedIntracellular(dj.Computed):
         segmented_current_injection: longblob
         """
     
-    def make(self,key):
-        # insert aligned events and master
-        realigned_event_dict = (RealignedEvent & key).fetch1('KEY')
-        self.insert1({**key, **realigned_event_dict}) 
+    def make(self, key):
+        self.insert1(key) 
         # get event, pre/post stim duration
         event_name, pre_stim_dur, post_stim_dur = (TrialSegmentationSetting & key).fetch1('event','pre_stim_duration','post_stim_duration')
         # get raw
-        fs = (acquisition.IntracellularAcquisition.MembranePotential & key).fetch1('membrane_potential_sampling_rate')
-        first_time_point = (acquisition.IntracellularAcquisition.MembranePotential & key).fetch1('membrane_potential_start_time')
-        Vm_wo_spike = (acquisition.IntracellularAcquisition.MembranePotential & key).fetch1('membrane_potential_wo_spike')
-        Vm_w_spike = (acquisition.IntracellularAcquisition.MembranePotential & key).fetch1('membrane_potential')
+        fs, first_time_point, Vm_wo_spike, Vm_w_spike = (acquisition.IntracellularAcquisition.MembranePotential & key).fetch1(
+                'membrane_potential_sampling_rate', 'membrane_potential_start_time', 'membrane_potential_wo_spike', 'membrane_potential')
         # segmentation
         segmented_Vm_wo_spike = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, Vm_wo_spike, fs, first_time_point)
         segmented_Vm_w_spike = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, Vm_w_spike, fs, first_time_point)
-        # insert
+
         self.MembranePotential.insert1(dict(key,
                                        segmented_mp = segmented_Vm_w_spike,
                                        segmented_mp_wo_spike = segmented_Vm_wo_spike))
         print(f'Perform trial-segmentation of membrane potential for trial: {key["trial_id"]}')
+        
         # -- current injection --
-        fs = (acquisition.IntracellularAcquisition.CurrentInjection & key).fetch1('current_injection_sampling_rate')
-        first_time_point = (acquisition.IntracellularAcquisition.CurrentInjection & key).fetch1('current_injection_start_time')
-        current_injection = (acquisition.IntracellularAcquisition.CurrentInjection & key).fetch1('current_injection')
+        fs, first_time_point, current_injection = (acquisition.IntracellularAcquisition.CurrentInjection & key).fetch1(
+                'current_injection_sampling_rate', 'current_injection_start_time', 'current_injection')
         segmented_current_injection = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, current_injection, fs, first_time_point)
-        # insert
+
         self.CurrentInjection.insert1(dict(key, segmented_current_injection = segmented_current_injection))
         print(f'Perform trial-segmentation of current injection for trial: {key["trial_id"]}')
     
@@ -133,8 +129,6 @@ class TrialSegmentedBehavior(dj.Computed):
     -> acquisition.BehaviorAcquisition
     -> acquisition.TrialSet.Trial
     -> TrialSegmentationSetting
-    ---
-    -> RealignedEvent
     """
     
     class LickTrace(dj.Part):
@@ -145,21 +139,17 @@ class TrialSegmentedBehavior(dj.Computed):
         segmented_lt_right: longblob
         """   
         
-    def make(self,key):
-        # insert aligned events and master
-        realigned_event_dict = (RealignedEvent & key).fetch1('KEY')
-        self.insert1({**key, **realigned_event_dict}) 
+    def make(self, key):
+        self.insert1(key) 
         # get event, pre/post stim duration
         event_name, pre_stim_dur, post_stim_dur = (TrialSegmentationSetting & key).fetch1('event','pre_stim_duration','post_stim_duration')
         # get raw
-        fs = (acquisition.BehaviorAcquisition.LickTrace & key).fetch1('lick_trace_sampling_rate')
-        first_time_point = (acquisition.BehaviorAcquisition.LickTrace & key).fetch1('lick_trace_start_time')
-        lt_left = (acquisition.BehaviorAcquisition.LickTrace & key).fetch1('lick_trace_left')
-        lt_right = (acquisition.BehaviorAcquisition.LickTrace & key).fetch1('lick_trace_right')
+        fs, first_time_point, lt_left, lt_right = (acquisition.BehaviorAcquisition.LickTrace & key).fetch1(
+                'lick_trace_sampling_rate', 'lick_trace_start_time', 'lick_trace_left', 'lick_trace_right')
         # segmentation
         key['segmented_lt_left'] = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, lt_left, fs, first_time_point)
         key['segmented_lt_right'] = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, lt_right, fs, first_time_point)
-        # insert
+
         self.LickTrace.insert1(key) 
         print(f'Perform trial-segmentation of lick traces for trial: {key["trial_id"]}')
     
@@ -171,22 +161,26 @@ class TrialSegmentedPhotoStimulus(dj.Computed):
     -> acquisition.TrialSet.Trial
     -> TrialSegmentationSetting
     ---
-    -> RealignedEvent
     segmented_photostim: longblob
     """
     
-    def make(self,key):
+    # custom key_source where acquisition.PhotoStimulation.photostim_timeseries exist
+    key_source = acquisition.TrialSet.Trial * TrialSegmentationSetting * (acquisition.PhotoStimulation - 'photostim_timeseries is NULL')
+    
+    def make(self, key):
         # get event, pre/post stim duration
         event_name, pre_stim_dur, post_stim_dur = (TrialSegmentationSetting & key).fetch1('event','pre_stim_duration','post_stim_duration')
         # get raw
-        fs = (acquisition.PhotoStimulation & key).fetch1('photostim_sampling_rate')
-        first_time_point = (acquisition.PhotoStimulation & key).fetch1('photostim_start_time')
-        photostim_timeseries = (acquisition.PhotoStimulation & key).fetch1('photostim_timeseries')
+        fs, first_time_point, photostim_timeseries = (acquisition.PhotoStimulation & key).fetch1(
+                'photostim_sampling_rate', 'photostim_start_time', 'photostim_timeseries')
         # segmentation
-        key['segmented_photostim'] = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, photostim_timeseries, fs, first_time_point)
-        # Get realigned event from RealignedEvent and insert 
-        realigned_event_dict = (RealignedEvent & key).fetch1('KEY')
-        self.insert1({**key, **realigned_event_dict}) 
+        try: 
+            key['segmented_photostim'] = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, photostim_timeseries, fs, first_time_point)
+        except EventChoiceError as e:
+            print(f'Trial segmentation error - Msg: {str(e)}')
+            return
+
+        self.insert1(key) 
         print(f'Perform trial-segmentation of photostim for trial: {key["trial_id"]}')
     
     
@@ -197,21 +191,21 @@ class TrialSegmentedUnitSpikeTimes(dj.Computed):
     -> acquisition.TrialSet.Trial
     -> TrialSegmentationSetting
     ---
-    -> RealignedEvent
     segmented_spike_times: longblob
     """
 
-    def make(self,key):
+    def make(self, key):
         # get event, pre/post stim duration
         event_name, pre_stim_dur, post_stim_dur = (TrialSegmentationSetting & key).fetch1('event','pre_stim_duration','post_stim_duration')
         # get event time
-        event_time_point = get_event_time(event_name, key)
-        
-        # handling the case where the event-of-interest is NaN
-        if np.isnan(event_time_point) or event_time_point is None:
-            print(f'Invalid event name or event time for unit: {key["unit_id"]} and trial: {key["trial_id"]}')
+        try: 
+            event_time_point = get_event_time(event_name, key)
+        except EventChoiceError as e:
+            print(f'Trial segmentation error - Msg: {str(e)}')
             return
             
+        pre_stim_dur = float(pre_stim_dur)
+        post_stim_dur = float(post_stim_dur)
         # check if pre/post stim dur is within start/stop time
         trial_start, trial_stop = (acquisition.TrialSet.Trial & key).fetch1('start_time','stop_time')
         if event_time_point - pre_stim_dur < trial_start:
@@ -223,26 +217,24 @@ class TrialSegmentedUnitSpikeTimes(dj.Computed):
             
         # get raw & segment
         spike_times = (acquisition.UnitSpikeTimes & key).fetch1('spike_times')
-        key['segmented_spike_times'] = spike_times[ (spike_times >= (event_time_point - pre_stim_dur)) &  (spike_times <= (event_time_point + post_stim_dur))]
-        # Get realigned event from RealignedEvent and insert 
-        realigned_event_dict = (RealignedEvent & key).fetch1('KEY')
+        key['segmented_spike_times'] = spike_times[(spike_times >= (event_time_point - pre_stim_dur)) &  (spike_times <= (event_time_point + post_stim_dur))] - event_time_point
 
-        # insert
-        self.insert1({**key, **realigned_event_dict})
+        self.insert1(key)
         print(f'Perform trial-segmentation of spike times for unit: {key["unit_id"]} and trial: {key["trial_id"]}')
 
 
 def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_dur, data, fs, first_time_point):
         # get event time
-        event_time_point = get_event_time(event_name, trial_key)
-        # handling the case where the event-of-interest is NaN
-        if np.isnan(event_time_point) or event_time_point is None:
-            raise Exception(f'Invalid event name or event time!')
+        try: 
+            event_time_point = get_event_time(event_name, trial_key)
+        except EventChoiceError as e:
+            raise e
         #
         pre_stim_dur = float(pre_stim_dur)
         post_stim_dur = float(post_stim_dur)
         # check if pre/post stim dur is within start/stop time, if not, pad with NaNs
         trial_start, trial_stop = (acquisition.TrialSet.Trial & trial_key).fetch1('start_time','stop_time')
+
         pre_stim_nan_count = 0
         post_stim_nan_count = 0
         if event_time_point - pre_stim_dur < trial_start:
@@ -266,7 +258,22 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
 def get_event_time(event_name, key):
     # get event time
     try:
-        return (acquisition.TrialSet.EventTime & key & {'trial_event' : event_name}).fetch1('event_time')
-    except Exception as e:
-        print(f'Error extracting event type: {event_name}\n\tMsg: {str(e)}')
-        return
+        t = (acquisition.TrialSet.EventTime & key & {'trial_event' : event_name}).fetch1('event_time')
+        if np.isnan(t):
+            raise EventChoiceError(event_name)
+        else:
+            return t
+    except:
+        raise EventChoiceError(event_name)
+    
+    
+class EventChoiceError(Exception):
+    '''Raise when "event" does not exist or "event_type" is invalid (e.g. nan)'''
+    def __init__(self, event_name, msg=None):
+        if msg is None:
+            msg = f'Invalid event type or time for: {event_name}'
+        super(EventChoiceError, self).__init__(msg)
+        self.event_name = event_name
+    pass
+    
+    

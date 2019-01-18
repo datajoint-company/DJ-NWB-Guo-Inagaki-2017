@@ -173,7 +173,7 @@ class TrialResponse(dj.Lookup):
     definition = """ # The behavioral response of this subject of this trial - correct/incorrect with respect to the trial type
     trial_response: varchar(32)
     """
-    contents = zip(['correct','incorrect','no response','early lick','N/A'])
+    contents = zip(['correct', 'incorrect', 'no response', 'early lick', 'N/A'])
 
 @schema
 class TrialStimType(dj.Lookup):
