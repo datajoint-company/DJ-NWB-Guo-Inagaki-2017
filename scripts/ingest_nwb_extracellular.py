@@ -4,14 +4,12 @@ Created on Mon Dec  3 16:22:42 2018
 
 @author: thinh
 """
-from datetime import datetime
 import os
 import re
-os.chdir('..')
+
 import h5py as h5
 import numpy as np
 
-import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation, analysis
 from pipeline import utilities
 
