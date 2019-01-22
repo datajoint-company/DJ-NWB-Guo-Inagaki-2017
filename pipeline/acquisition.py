@@ -62,9 +62,9 @@ class BehaviorAcquisition(dj.Imported):
         lick_trace_sampling_rate: float # (Hz) sampling rate of lick trace recording
         """       
         
-    def make(self,key):
-        ############## Dataset #################
-        sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
+    def make(self, key):
+        # ============ Dataset ============
+        sess_data_dir = os.path.join('..', 'data', 'whole_cell_nwb2.0')
                 
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
@@ -139,8 +139,8 @@ class IntracellularAcquisition(dj.Imported):
         current_injection_sampling_rate: float  # (Hz) sampling rate of current injection recording
         """
         
-    def make(self,key):
-        ############## Dataset #################
+    def make(self, key):
+        # ============ Dataset ============
         sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
                 
         # Get the Session definition from the keys of this session
@@ -156,7 +156,7 @@ class IntracellularAcquisition(dj.Imported):
         
         #  ============= Now read the data and start ingesting =============
         self.insert1(key)
-        print('Insert intracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'],key['session_time'],key['cell_id']))
+        print('Insert intracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'], key['session_time'], key['cell_id']))
         # -- MembranePotential
         membrane_potential_time_stamps = nwb['acquisition']['timeseries']['membrane_potential']['timestamps'].value
         self.MembranePotential.insert1(dict(key, 
@@ -197,7 +197,7 @@ class ExtracellularAcquisition(dj.Imported):
         voltage_sampling_rate: float # (Hz) sampling rate of voltage recording
         """
         
-    def make(self,key):
+    def make(self, key):
         # this function implements the ingestion of raw extracellular data into the pipeline
         return None
 
@@ -217,7 +217,7 @@ class UnitSpikeTimes(dj.Imported):
     spike_waveform: longblob  # waveform(s) of each spike at each spike time (spike_time x waveform_timestamps)
     """
         
-    def make(self,key):
+    def make(self, key):
         ############## Dataset #################
         sess_data_dir = os.path.join('..','data','extracellular','datafiles')
                 
@@ -239,21 +239,21 @@ class UnitSpikeTimes(dj.Imported):
         cell_type = {}
         for tmp_str in ec_unit_times.get('cell_types').value:
             tmp_str = tmp_str.decode('UTF-8')
-            split_str = re.split(' - ',tmp_str)
+            split_str = re.split(' - ', tmp_str)
             cell_type[split_str[0]] = split_str[1]
         # - unit info
         print('Inserting spike unit: ', end="")
         for unit_str in ec_event_waveform.keys():
-            unit_id = int(re.search('\d+',unit_str).group())
+            unit_id = int(re.search('\d+', unit_str).group())
             unit_depth = ec_unit_times.get(unit_str).get('depth').value
             key['unit_id'] = unit_id
             key['channel_id'] = ec_event_waveform.get(unit_str).get('electrode_idx').value.item(0) - 1  # TODO: check if electrode_idx has MATLAB 1-based indexing (starts at 1)
             key['spike_times'] = ec_unit_times.get(unit_str).get('times').value
             key['unit_cell_type'] = cell_type[unit_str]
-            key.update(zip(('unit_x','unit_y','unit_z'),unit_depth))
+            key.update(zip(('unit_x', 'unit_y', 'unit_z'), unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
             self.insert1(key)
-            print(f'{unit_id} ',end="")
+            print(f'{unit_id} ', end="")
         print('')
         nwb.close()
     
@@ -287,7 +287,7 @@ class TrialSet(dj.Imported):
         event_time = null: float   # (in second) event time with respect to this session's start time
         """
 
-    def make(self,key):
+    def make(self, key):
         # this function implements the ingestion of Trial data into the pipeline
         return None
     
@@ -305,7 +305,7 @@ class TrialStimInfo(dj.Imported):
     photo_loc_galvo_z: float  # (mm) photostim coordinates field 
     """    
     
-    def make(self,key):
+    def make(self, key):
         # this function implements the ingestion of Trial stim info into the pipeline
         return None
     

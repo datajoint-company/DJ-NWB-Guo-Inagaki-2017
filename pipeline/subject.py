@@ -20,7 +20,7 @@ class Strain(dj.Lookup):
     definition = """ 
     strain: varchar(24)
     """
-    contents = zip(['C57BL6','Ai35D','N/A'])
+    contents = zip(['C57BL6', 'Ai35D', 'N/A'])
   
     
 @schema
@@ -31,10 +31,10 @@ class StrainAlias(dj.Lookup):
     -> Strain
     """
     contents = [
-            ['C57BL6','C57BL6'],
-            ['B6','C57BL6'],
-            ['Ai35D','Ai35D'],
-            ['N/A','N/A']
+            ['C57BL6', 'C57BL6'],
+            ['B6', 'C57BL6'],
+            ['Ai35D', 'Ai35D'],
+            ['N/A', 'N/A']
             ]
 
 
@@ -44,13 +44,12 @@ class Allele(dj.Lookup):
     allele_name: varchar(128)
     """
     contents = zip(
-        ['L7-cre',
-        'rosa26-lsl-ChR2-YFP']
+        ['L7-cre', 'rosa26-lsl-ChR2-YFP']
     )
 
 
 @schema
-class Subject(dj.Manual): # temporarily remove species, strain and animalsource
+class Subject(dj.Manual):  # temporarily remove species, strain and animalsource
     definition = """
     subject_id: varchar(64)  # id of the subject (e.g. ANM244028)
     ---
@@ -71,5 +70,3 @@ class Zygosity(dj.Manual):
     ---
     zygosity:  enum('Homozygous', 'Heterozygous', 'Negative', 'Unknown')
     """
-
-    

@@ -15,7 +15,7 @@ import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation, analysis
 from pipeline import utilities
 
-############## Dataset #################
+# ================== Dataset ==================
 path = os.path.join('.','data','extracellular','datafiles')
 fnames = os.listdir(path)
 
@@ -29,9 +29,8 @@ for fname in fnames:
         print('=================================')
         continue
 
-    ############################ METADATA ############################
-    
-    # ==================== subject ====================
+    # ========================== METADATA ==========================
+    # ==================== Subject ====================
     subject_id = nwb['general']['subject']['subject_id'].value.decode('UTF-8')
     desc = nwb['general']['subject']['description'].value.decode('UTF-8')
     sex = nwb['general']['subject']['sex'].value.decode('UTF-8')
@@ -50,14 +49,14 @@ for fname in fnames:
         for s in subject.StrainAlias.fetch():
             m = re.search(s[0], strain_str.group()) 
             if (m is not None):
-                strain = (subject.StrainAlias & {'strain_alias':s[0]}).fetch1('strain')
+                strain = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
                 break
-    source_str = re.search('(?<=animalSource:\s)(.*)',desc) # extract the information related to animal strain
-    if source_str is not None: # if found, search found string to find matched strain in db
+    source_str = re.search('(?<=animalSource:\s)(.*)', desc)  # extract the information related to animal strain
+    if source_str is not None:  # if found, search found string to find matched strain in db
         for s in reference.AnimalSourceAlias.fetch():
             m = re.search(s[0], source_str.group()) 
-            if (m is not None):
-                animal_source = (reference.AnimalSourceAlias & {'animal_source_alias':s[0]}).fetch1('animal_source')
+            if m is not None:
+                animal_source = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
                 break
             
     if dob is not None:
@@ -94,12 +93,12 @@ for fname in fnames:
 
     date_of_experiment = utilities.parse_prefix(session_start_time) # info here is incorrect (see identifier)
     # due to incorrect info in "session_start_time" - temporary fix: use info in 'identifier'
-    date_of_experiment = re.split(';\s?',identifier)[-1].replace('T',' ')
+    date_of_experiment = re.split(';\s?', identifier)[-1].replace('T', ' ')
     date_of_experiment = utilities.parse_prefix(date_of_experiment) 
 
     # experimenter and experiment type (possible multiple experimenters or types)
     for k in np.arange(experimenter.size):
-        reference.Experimenter.insert1({'experimenter': experimenter.item(k)},skip_duplicates=True)
+        reference.Experimenter.insert1({'experimenter': experimenter.item(k)}, skip_duplicates=True)
 
     if date_of_experiment is not None: 
         with acquisition.Session.connection.transaction:
@@ -107,21 +106,27 @@ for fname in fnames:
                         {'subject_id':subject_id,
                          'session_time': date_of_experiment,
                          'session_note': session_description
-                         },skip_duplicates=True)
+                         }, skip_duplicates=True)
             for k in np.arange(experimenter.size):
                 acquisition.Session.Experimenter.insert1(            
                             {'subject_id':subject_id,
                              'session_time': date_of_experiment,
                              'experimenter': experimenter.item(k)
-                             },skip_duplicates=True)
+                             }, skip_duplicates=True)
             # there is still the ExperimentType part table here...
             print(f'Creating Session - Subject: {subject_id} - Date: {date_of_experiment}')
 
     # ==================== Trials ====================
     key = {'subject_id': subject_id, 'session_time': date_of_experiment}
-    trial_type_choices = {'L':'lick left','R':'lick right'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
-    trial_resp_choices = {'Hit':'correct','Err':'incorrect','NoLick':'no response','LickEarly':'early lick'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialResponse'
-    photostim_period_choices = {1:'sample', 2:'delay', 3:'response'} 
+    # map the hardcoded trial description (from 'reference.TrialType')
+    trial_type_choices = {'L': 'lick left',
+                          'R': 'lick right'}
+    # map the hardcoded trial description (from 'reference.TrialResponse')
+    trial_resp_choices = {'Hit': 'correct',
+                          'Err': 'incorrect',
+                          'NoLick': 'no response',
+                          'LickEarly': 'early lick'}
+    photostim_period_choices = {1: 'sample', 2: 'delay', 3: 'response'}
     # -- read data -- nwb['epochs']
     trial_names = []
     tags = []
@@ -132,7 +137,6 @@ for fname in fnames:
         tags.append(nwb['epochs'][trial]['tags'].value)
         start_times.append(nwb['epochs'][trial]['start_time'].value)
         stop_times.append(nwb['epochs'][trial]['stop_time'].value)
-    
     # -- read data -- nwb['analysis']
     trial_type_string = np.array(nwb['analysis']['trial_type_string'])
     trial_type_mat = np.array(nwb['analysis']['trial_type_mat'])
@@ -214,7 +218,8 @@ for fname in fnames:
     device_names = list(nwb['general']['devices'])
     # -- read data - electrodes
     electrodes = nwb['general']['extracellular_ephys']['electrodes']
-    probe_placement_brain_loc = electrodes[0][5].decode('UTF-8')  # get probe placement from 0th electrode (should be the same for all electrodes)
+    # get probe placement from 0th electrode (should be the same for all electrodes)
+    probe_placement_brain_loc = electrodes[0][5].decode('UTF-8')
     probe_placement_brain_loc = re.search("(?<=\[\')(.*)(?=\'\])",probe_placement_brain_loc).group()
     
     # hemisphere: left-hemisphere is ipsi, so anything contra is right
@@ -223,10 +228,10 @@ for fname in fnames:
     # -- Probe
     reference.Probe.insert1(
             {'probe_name' : device_names[0], 
-             'channel_counts' : len(electrodes) }, skip_duplicates=True)
+             'channel_counts' : len(electrodes)}, skip_duplicates=True)
     for electrode in electrodes:       
         shank_id = electrode[-2].decode('UTF-8')
-        shank_id = int(re.search('\d+',shank_id).group())
+        shank_id = int(re.search('\d+', shank_id).group())
         reference.Probe.Channel.insert1(
                 {'probe_name' : device_names[0], 
                  'channel_id' : electrode[0],
@@ -269,7 +274,7 @@ for fname in fnames:
     # ==================== Photo stimulation ====================
     # -- Device
     stim_device = 'laser' # hard-coded here..., could not find a more specific name from metadata 
-    stimulation.PhotoStimDevice.insert1({'device_name':stim_device}, skip_duplicates=True)
+    stimulation.PhotoStimDevice.insert1({'device_name': stim_device}, skip_duplicates=True)
 
     # -- read data - optogenetics
     opto_site_name = list(nwb['general']['optogenetics'].keys())[0]
@@ -287,20 +292,20 @@ for fname in fnames:
     if re.search('\s+|N/?A', brain_region) is None:
         
         coord_ap_ml_dv = re.search('(?<=\[)(.*)(?=\])', opto_location).group()
-        coord_ap_ml_dv = re.split(',',coord_ap_ml_dv)
+        coord_ap_ml_dv = re.split(',', coord_ap_ml_dv)
 
         # -- BrainLocation
         reference.BrainLocation.insert1(
                 {'brain_region': brain_region,
-                 'brain_subregion':'N/A',
+                 'brain_subregion': 'N/A',
                  'cortical_layer': 'N/A',
                  'hemisphere': hemi}, skip_duplicates=True)
         
         # -- ActionLocation
-        coordinate_ref = 'bregma' # double check!!
+        coordinate_ref = 'bregma'  # double check!!
         reference.ActionLocation.insert1(
                 {'brain_region': brain_region,
-                 'brain_subregion':'N/A',
+                 'brain_subregion': 'N/A',
                  'cortical_layer': 'N/A',
                  'hemisphere': hemi,
                  'coordinate_ref': coordinate_ref,
@@ -311,16 +316,16 @@ for fname in fnames:
         # -- PhotoStimulationInfo
         stimulation.PhotoStimulationInfo.insert1(
                 {'brain_region': brain_region,
-                 'brain_subregion':'N/A',
+                 'brain_subregion': 'N/A',
                  'cortical_layer': 'N/A',
                  'hemisphere': hemi,
                  'coordinate_ref': coordinate_ref,
-                 'coordinate_ap':float(coord_ap_ml_dv[0]),
-                 'coordinate_ml':float(coord_ap_ml_dv[1]),
-                 'coordinate_dv':float(coord_ap_ml_dv[2]),
-                 'device_name':stim_device,
+                 'coordinate_ap': float(coord_ap_ml_dv[0]),
+                 'coordinate_ml': float(coord_ap_ml_dv[1]),
+                 'coordinate_dv': float(coord_ap_ml_dv[2]),
+                 'device_name': stim_device,
                  'photo_stim_excitation_lambda': float(opto_excitation_lambda),
-                 'photo_stim_notes':f'{opto_site_name} - {opto_descs}'}, skip_duplicates=True)
+                 'photo_stim_notes': f'{opto_site_name} - {opto_descs}'}, skip_duplicates=True)
     
         # -- PhotoStimulation 
         # only 1 photostim per session, perform at the same time with session
@@ -333,18 +338,18 @@ for fname in fnames:
         photostim_sampling_rate = None if not isinstance(photostim_timestamps, np.ndarray) else 1/np.mean(np.diff(photostim_timestamps))
             
         acquisition.PhotoStimulation.insert1(
-                {'subject_id':subject_id,
+                {'subject_id': subject_id,
                  'session_time': date_of_experiment,
                  'photostim_datetime': date_of_experiment,
                  'brain_region': brain_region,
-                 'brain_subregion':'N/A',
+                 'brain_subregion': 'N/A',
                  'cortical_layer': 'N/A',
                  'hemisphere': hemi,
                  'coordinate_ref': coordinate_ref,
-                 'coordinate_ap':float(coord_ap_ml_dv[0]),
-                 'coordinate_ml':float(coord_ap_ml_dv[1]),
-                 'coordinate_dv':float(coord_ap_ml_dv[2]),
-                 'device_name':stim_device,
+                 'coordinate_ap': float(coord_ap_ml_dv[0]),
+                 'coordinate_ml': float(coord_ap_ml_dv[1]),
+                 'coordinate_dv': float(coord_ap_ml_dv[2]),
+                 'device_name': stim_device,
                  'photo_stim_excitation_lambda': float(opto_excitation_lambda),
                  'photostim_timeseries': photostim_data,
                  'photostim_start_time': photostim_start_time,
