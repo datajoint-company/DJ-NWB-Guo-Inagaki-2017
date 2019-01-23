@@ -20,7 +20,7 @@ class Strain(dj.Lookup):
     definition = """ 
     strain: varchar(24)
     """
-    contents = zip(['C57BL6', 'Ai35D', 'VGAT-ChR2-EYFP', 'N/A'])
+    contents = zip(['C57BL6', 'Ai35D', 'VGAT-ChR2-EYFP', 'PV-Cre', 'N/A'])
   
     
 @schema
@@ -33,8 +33,11 @@ class StrainAlias(dj.Lookup):
     contents = [
             ['C57BL6', 'C57BL6'],
             ['B6', 'C57BL6'],
+            ['C57Bl/6', 'C57BL6'],
             ['Ai35D', 'Ai35D'],
+            ['PV-IRES-Cre', 'PV-Cre'],
             ['VGAT-ChR2-EYFP', 'VGAT-ChR2-EYFP'],
+            ['VGAT-ChR2(H134R)-EYFP', 'VGAT-ChR2-EYFP'],
             ['N/A', 'N/A']
             ]
 

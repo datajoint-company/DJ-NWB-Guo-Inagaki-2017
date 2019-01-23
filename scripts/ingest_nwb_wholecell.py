@@ -54,14 +54,14 @@ for fname in fnames:
     strain_str = re.search('(?<=Animal Strain:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
     if strain_str is not None:  # if found, search found string to find matched strain in db
         for s in subject.StrainAlias.fetch():
-            m = re.search(s[0], strain_str.group()) 
+            m = re.search(re.escape(s[0]), strain_str.group(), re.I) 
             if m is not None:
                 subject_info['strain'] = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
                 break
     source_str = re.search('(?<=Animal source:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
     if source_str is not None:  # if found, search found string to find matched strain in db
         for s in reference.AnimalSourceAlias.fetch():
-            m = re.search(s[0], source_str.group()) 
+            m = re.search(re.escape(s[0]), source_str.group(), re.I) 
             if m is not None:
                 subject_info['animal_source'] = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
                 break

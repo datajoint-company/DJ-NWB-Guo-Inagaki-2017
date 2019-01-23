@@ -87,7 +87,7 @@ class AnimalSource(dj.Lookup):
     definition = """
     animal_source: varchar(32)      # source of the animal, Jax, Charles River etc.
     """
-    contents = zip(['Jackson', 'Homemade'])
+    contents = zip(['Jackson', 'Charles River', 'Guoping Feng', 'Homemade'])
 
 
 @schema
@@ -100,7 +100,10 @@ class AnimalSourceAlias(dj.Lookup):
     contents = [ 
             ['Jackson', 'Jackson'],
             ['Homemade', 'Homemade'],
-            ['Jax', 'Jackson']
+            ['Jax', 'Jackson'],
+            ['JAX', 'Jackson'],
+            ['Charles River', 'Charles River'],
+            ['Guoping Feng', 'Guoping Feng'],
             ]
 
 

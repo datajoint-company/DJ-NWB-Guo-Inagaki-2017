@@ -6,7 +6,7 @@ Created on Mon Dec  3 16:22:42 2018
 """
 import os
 import re
-
+os.chdir('..')
 import h5py as h5
 import numpy as np
 
@@ -30,7 +30,7 @@ for fname in fnames:
     # ========================== METADATA ==========================
     # ==================== Subject ====================
     subject_info = {c: nwb['general']['subject'][c].value.decode('UTF-8')
-                    for c in ('subject_id', 'description', 'sex', 'species', 'weight', 'age', 'genotype')}
+                    for c in ('subject_id', 'description', 'sex', 'species', 'age', 'genotype')}
         
     # dob and sex
     subject_info['sex'] = subject_info['sex'][0].upper()
@@ -42,14 +42,14 @@ for fname in fnames:
     strain_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']) # extract the information related to animal strain
     if strain_str is not None: # if found, search found string to find matched strain in db
         for s in subject.StrainAlias.fetch():
-            m = re.search(s[0], strain_str.group()) 
+            m = re.search(re.escape(s[0]), strain_str.group(), re.I) 
             if m is not None:
                 subject_info['strain'] = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
                 break
     source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
     if source_str is not None:  # if found, search found string to find matched strain in db
         for s in reference.AnimalSourceAlias.fetch():
-            m = re.search(s[0], source_str.group()) 
+            m = re.search(re.escape(s[0]), source_str.group(), re.I) 
             if m is not None:
                 subject_info['animal_source'] = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
                 break
@@ -69,14 +69,13 @@ for fname in fnames:
             experiment_description=nwb['general']['experiment_description'].value,
             institution=nwb['general']['institution'].value,
             related_publications=nwb['general']['related_publications'].value.decode('UTF-8'),
-            session_id=nwb['general']['session_id'].value,
             surgery=nwb['general']['surgery'].value.decode('UTF-8'),
             identifier=nwb['identifier'].value,
             nwb_version=nwb['nwb_version'].value,
             session_note=nwb['session_description'].value,
             session_time=session_time)
 
-        experimenter = np.array(nwb['general']['experimenter'])
+        experimenters = nwb['general']['experimenter'].value
         # experimenter and experiment type (possible multiple experimenters or types)
         experimenters = [experimenters] if np.array(
             experimenters).size <= 1 else experimenters  # in case there's only 1 experimenter
@@ -89,7 +88,7 @@ for fname in fnames:
                 acquisition.Session.insert1({**subject_info, **session_info}, ignore_extra_fields=True)
                 acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k) for k in experimenters), ignore_extra_fields=True)
                 # there is still the ExperimentType part table here...
-            print(f'Creating Session - Subject: {subject_id} - Date: {date_of_experiment}')
+            print(f'Creating Session - Subject: {subject_info["subject_id"]} - Date: {session_info["session_time"]}')
 
     # ==================== Trials ====================
     trial_key = {'subject_id': subject_info["subject_id"], 'session_time': session_info["session_time"]}
@@ -190,7 +189,7 @@ for fname in fnames:
     probe_placement_brain_loc = re.search("(?<=\[\')(.*)(?=\'\])", probe_placement_brain_loc).group()
 
     # -- Probe
-    if {'probe_name': device_names[0], 'channel_counts': len(electrodes)} not in reference.Probe:
+    if {'probe_name': device_names[0], 'channel_counts': len(electrodes)} not in reference.Probe.proj():
         reference.Probe.insert1(
                 {'probe_name' : device_names[0],
                  'channel_counts' : len(electrodes)})
