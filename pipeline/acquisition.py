@@ -65,18 +65,15 @@ class BehaviorAcquisition(dj.Imported):
     def make(self, key):
         # ============ Dataset ============
         sess_data_dir = os.path.join('..', 'data', 'whole_cell_nwb2.0')
-                
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
-        
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             print(f'BehaviorAcquisition import failed for: {animal_id} - {date_of_experiment}')
             return
-        nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
-        
+        nwb = h5.File(os.path.join(sess_data_dir, sess_data_file), 'r')
         #  ============= Now read the data and start ingesting =============
         self.insert1(key)
         print('Insert behavioral data for: subject: {0} - date: {1}'.format(key['subject_id'],key['session_time']))
@@ -141,35 +138,32 @@ class IntracellularAcquisition(dj.Imported):
         
     def make(self, key):
         # ============ Dataset ============
-        sess_data_dir = os.path.join('..','data','whole_cell_nwb2.0')
-                
+        sess_data_dir = os.path.join('..', 'data', 'whole_cell_nwb2.0')
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
-        
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             print(f'IntracellularAcquisition import failed for: {animal_id} - {date_of_experiment}')
             return
-        nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
-        
+        nwb = h5.File(os.path.join(sess_data_dir, sess_data_file), 'r')
         #  ============= Now read the data and start ingesting =============
         self.insert1(key)
         print('Insert intracellular data for: subject: {0} - date: {1} - cell: {2}'.format(key['subject_id'], key['session_time'], key['cell_id']))
         # -- MembranePotential
         membrane_potential_time_stamps = nwb['acquisition']['timeseries']['membrane_potential']['timestamps'].value
-        self.MembranePotential.insert1(dict(key, 
-            membrane_potential = nwb['acquisition']['timeseries']['membrane_potential']['data'].value,
-            membrane_potential_wo_spike = nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'].value,
-            membrane_potential_start_time = membrane_potential_time_stamps[0],
-            membrane_potential_sampling_rate = 1/np.mean(np.diff(membrane_potential_time_stamps))))        
+        self.MembranePotential.insert1(dict(key,
+            membrane_potential=nwb['acquisition']['timeseries']['membrane_potential']['data'].value,
+            membrane_potential_wo_spike=nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike']['data'].value,
+            membrane_potential_start_time=membrane_potential_time_stamps[0],
+            membrane_potential_sampling_rate=1/np.mean(np.diff(membrane_potential_time_stamps))))
         # -- CurrentInjection
         current_injection_time_stamps = nwb['acquisition']['timeseries']['current_injection']['timestamps'].value
         self.CurrentInjection.insert1(dict(key,
-            current_injection = nwb['acquisition']['timeseries']['current_injection']['data'].value,
-            current_injection_start_time = current_injection_time_stamps[0],
-            current_injection_sampling_rate = 1/np.mean(np.diff(current_injection_time_stamps))))                
+            current_injection=nwb['acquisition']['timeseries']['current_injection']['data'].value,
+            current_injection_start_time=current_injection_time_stamps[0],
+            current_injection_sampling_rate=1/np.mean(np.diff(current_injection_time_stamps))))
         nwb.close()
 
     
@@ -218,20 +212,17 @@ class UnitSpikeTimes(dj.Imported):
     """
         
     def make(self, key):
-        ############## Dataset #################
-        sess_data_dir = os.path.join('..','data','extracellular','datafiles')
-                
+        # ================ Dataset ================
+        sess_data_dir = os.path.join('..', 'data', 'extracellular', 'datafiles')
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
-        
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None: 
             print(f'UnitSpikeTimes import failed for: {animal_id} - {date_of_experiment}')
             return
         nwb = h5.File(os.path.join(sess_data_dir,sess_data_file), 'r')
-
         # ------ Spike ------
         ec_event_waveform = nwb['processing']['extracellular_units']['EventWaveform']
         ec_unit_times = nwb['processing']['extracellular_units']['UnitTimes']

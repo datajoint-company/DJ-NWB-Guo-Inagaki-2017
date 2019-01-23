@@ -50,10 +50,10 @@ class RealignedEvent(dj.Computed):
         eoi_time_point = get_event_time(event_of_interest, key)
         # get all other events for this trial
         events, event_times = (acquisition.TrialSet.EventTime & key).fetch('trial_event', 'event_time')
-        for e_idx, eve in enumerate(events):
-            event_time = event_times[e_idx]
-            event_time = event_time - eoi_time_point
-            self.RealignedEventTime.insert1(dict(key, realigned_trial_event=eve, realigned_event_time=event_time))
+        self.RealignedEventTime.insert(dict(key,
+                                             realigned_trial_event=eve,
+                                             realigned_event_time=event_times[e_idx] - eoi_time_point)
+                                        for e_idx, eve in enumerate(events))
 
 
 @schema
@@ -108,20 +108,23 @@ class TrialSegmentedIntracellular(dj.Computed):
         fs, first_time_point, Vm_wo_spike, Vm_w_spike = (acquisition.IntracellularAcquisition.MembranePotential & key).fetch1(
                 'membrane_potential_sampling_rate', 'membrane_potential_start_time', 'membrane_potential_wo_spike', 'membrane_potential')
         # segmentation
-        segmented_Vm_wo_spike = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, Vm_wo_spike, fs, first_time_point)
-        segmented_Vm_w_spike = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, Vm_w_spike, fs, first_time_point)
+        segmented_Vm_wo_spike = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur,
+                                                           Vm_wo_spike, fs, first_time_point)
+        segmented_Vm_w_spike = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur,
+                                                          Vm_w_spike, fs, first_time_point)
 
         self.MembranePotential.insert1(dict(key,
-                                       segmented_mp = segmented_Vm_w_spike,
-                                       segmented_mp_wo_spike = segmented_Vm_wo_spike))
+                                       segmented_mp=segmented_Vm_w_spike,
+                                       segmented_mp_wo_spike=segmented_Vm_wo_spike))
         print(f'Perform trial-segmentation of membrane potential for trial: {key["trial_id"]}')
         
         # -- current injection --
         fs, first_time_point, current_injection = (acquisition.IntracellularAcquisition.CurrentInjection & key).fetch1(
                 'current_injection_sampling_rate', 'current_injection_start_time', 'current_injection')
-        segmented_current_injection = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur, current_injection, fs, first_time_point)
+        segmented_current_injection = perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur,
+                                                                 current_injection, fs, first_time_point)
 
-        self.CurrentInjection.insert1(dict(key, segmented_current_injection = segmented_current_injection))
+        self.CurrentInjection.insert1(dict(key, segmented_current_injection=segmented_current_injection))
         print(f'Perform trial-segmentation of current injection for trial: {key["trial_id"]}')
     
     
@@ -224,8 +227,9 @@ class TrialSegmentedUnitSpikeTimes(dj.Computed):
             
         # get raw & segment
         spike_times = (acquisition.UnitSpikeTimes & key).fetch1('spike_times')
-        key['segmented_spike_times'] = spike_times[(spike_times >= (event_time_point - pre_stim_dur))
-                                                   & (spike_times <= (event_time_point + post_stim_dur))] - event_time_point
+        key['segmented_spike_times'] = spike_times[np.logical_and(
+            (spike_times >= (event_time_point - pre_stim_dur)),
+            (spike_times <= (event_time_point + post_stim_dur)))] - event_time_point
 
         self.insert1(key)
         print(f'Perform trial-segmentation of spike times for unit: {key["unit_id"]} and trial: {key["trial_id"]}')
@@ -241,12 +245,12 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
         pre_stim_dur = float(pre_stim_dur)
         post_stim_dur = float(post_stim_dur)
         # check if pre/post stim dur is within start/stop time, if not, pad with NaNs
-        trial_start, trial_stop = (acquisition.TrialSet.Trial & trial_key).fetch1('start_time','stop_time')
+        trial_start, trial_stop = (acquisition.TrialSet.Trial & trial_key).fetch1('start_time', 'stop_time')
 
         pre_stim_nan_count = 0
         post_stim_nan_count = 0
         if event_time_point - pre_stim_dur < trial_start:
-            pre_stim_nan_count = (trial_start - (event_time_point - pre_stim_dur))* fs
+            pre_stim_nan_count = (trial_start - (event_time_point - pre_stim_dur)) * fs
             pre_stim_dur = 0
             print(f'Warning: Out of bound prestimulus duration, pad {pre_stim_nan_count} NaNs')
         if event_time_point + post_stim_dur > trial_stop:
@@ -268,7 +272,7 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
 def get_event_time(event_name, key):
     # get event time
     try:
-        t = (acquisition.TrialSet.EventTime & key & {'trial_event' : event_name}).fetch1('event_time')
+        t = (acquisition.TrialSet.EventTime & key & {'trial_event': event_name}).fetch1('event_time')
         if np.isnan(t):
             raise EventChoiceError(event_name)
         else:
@@ -282,7 +286,7 @@ class EventChoiceError(Exception):
     def __init__(self, event_name, msg=None):
         if msg is None:
             msg = f'Invalid event type or time for: {event_name}'
-        super(EventChoiceError, self).__init__(msg)
+        super().__init__(msg)
         self.event_name = event_name
     pass
     
