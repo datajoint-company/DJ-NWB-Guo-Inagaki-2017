@@ -38,7 +38,7 @@ class RealignedEvent(dj.Computed):
         -> master
         realigned_trial_event: varchar(36)
         ---
-        realigned_event_time = null: float   # (in second) event time with respect to the event this trial-segmentation is time-locked to
+        realigned_event_time = null: float   # (s) event time with respect to the event this trial-segmentation is time-locked to
         """
         
     def make(self, key):
