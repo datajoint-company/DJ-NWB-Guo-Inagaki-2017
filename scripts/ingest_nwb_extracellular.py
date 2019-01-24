@@ -31,7 +31,9 @@ for fname in fnames:
     # ==================== Subject ====================
     subject_info = {c: nwb['general']['subject'][c].value.decode('UTF-8')
                     for c in ('subject_id', 'description', 'sex', 'species', 'age', 'genotype')}
-        
+    # force subject_id to be lower-case for consistency
+    subject_info['subject_id'] = subject_info['subject_id'].lower()
+
     # dob and sex
     subject_info['sex'] = subject_info['sex'][0].upper()
     dob_str = re.search('(?<=dateOfBirth:\s)(.*)(?=\n)', subject_info['description'])
