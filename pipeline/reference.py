@@ -19,7 +19,6 @@ class WholeCellDevice(dj.Lookup):
 class Probe(dj.Lookup):
     definition = """ # Description of a particular model of probe.
     probe_name: varchar(128)      # String naming probe model
-    ---
     channel_counts: smallint            # number of channels in the probe
     """
 
@@ -40,7 +39,7 @@ class CorticalLayer(dj.Lookup):
     definition = """
     cortical_layer : varchar(8) # layer within cortex
     """
-    contents = zip(['N/A','1','2','3','4','5','6','2/3','3/4','4/5','5/6'])
+    contents = zip(['N/A', '1', '2', '3', '4', '5', '6', '2/3', '3/4', '4/5', '5/6'])
 
 
 @schema
@@ -48,7 +47,7 @@ class Hemisphere(dj.Lookup):
     definition = """
     hemisphere: varchar(8)
     """
-    contents = zip(['left','right'])
+    contents = zip(['left', 'right'])
 
 
 @schema
@@ -68,7 +67,7 @@ class CoordinateReference(dj.Lookup):
     definition = """
     coordinate_ref: varchar(32)
     """
-    contents = zip(['lambda','bregma'])       
+    contents = zip(['lambda', 'bregma'])
     
     
 @schema 
@@ -87,7 +86,7 @@ class AnimalSource(dj.Lookup):
     definition = """
     animal_source: varchar(32)      # source of the animal, Jax, Charles River etc.
     """
-    contents = zip(['Jackson','Homemade'])
+    contents = zip(['Jackson', 'Charles River', 'Guoping Feng', 'Homemade'])
 
 
 @schema
@@ -100,7 +99,10 @@ class AnimalSourceAlias(dj.Lookup):
     contents = [ 
             ['Jackson', 'Jackson'],
             ['Homemade', 'Homemade'],
-            ['Jax', 'Jackson']
+            ['Jax', 'Jackson'],
+            ['JAX', 'Jackson'],
+            ['Charles River', 'Charles River'],
+            ['Guoping Feng', 'Guoping Feng'],
             ]
 
 
@@ -109,7 +111,7 @@ class VirusSource(dj.Lookup):
     definition = """
     virus_source: varchar(64)
     """
-    contents = zip(['UNC','UPenn','MIT','Stanford','Homemade'])
+    contents = zip(['UNC', 'UPenn', 'MIT', 'Stanford', 'Homemade'])
 
 
 @schema
@@ -149,23 +151,28 @@ class WhiskerConfig(dj.Lookup):
     definition = """
     whisker_config: varchar(32)
     """
-    contents = zip(['full','C2'])
+    contents = zip(['full', 'C2'])
        
     
 @schema
 class ExperimentalEvent(dj.Lookup):
     definition = """ # Experimental paradigm events of this study
-    event: varchar(32)    
+    event: varchar(32)
+    ---
+    description: varchar(256)    
     """
-    contents = zip(['trial_start', 'trial_stop', 'cue_start', 'cue_end', 'pole_in', 'pole_out'])
-    
+    contents = zip(['trial_start', 'trial_stop', 'cue_start', 'cue_end', 'pole_in', 'pole_out'],
+                   ['trial start time', 'trial end time',
+                    'onset of auditory cue', 'offset of auditory cue',
+                    'onset of pole moving in', 'onset of pole moving out'])
+
     
 @schema
 class TrialType(dj.Lookup):
     definition = """ # The experimental type of this trial, e.g. Lick Left vs Lick Right
     trial_type: varchar(32)
     """
-    contents = zip(['lick left','lick right','non-performing','N/A'])
+    contents = zip(['lick left', 'lick right', 'non-performing', 'N/A'])
     
     
 @schema
@@ -173,12 +180,12 @@ class TrialResponse(dj.Lookup):
     definition = """ # The behavioral response of this subject of this trial - correct/incorrect with respect to the trial type
     trial_response: varchar(32)
     """
-    contents = zip(['correct','incorrect','no response','early lick','N/A'])
+    contents = zip(['correct', 'incorrect', 'no response', 'early lick', 'N/A'])
 
 @schema
 class TrialStimType(dj.Lookup):
     definition = """ # The stimulation type of this trial, e.g. 'no stim', 'photo stimulation', 'photo inhibition'
     trial_stim_type: varchar(32)
     """
-    contents = zip(['no stim','photo stimulation','photo inhibition','N/A'])
+    contents = zip(['no stim', 'photo stimulation', 'photo inhibition', 'N/A'])
     

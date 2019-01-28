@@ -4,24 +4,23 @@ Created on Mon Dec  3 16:22:42 2018
 
 @author: thinh
 """
-from datetime import datetime
 import os
 import re
 os.chdir('..')
 import h5py as h5
 import numpy as np
+from decimal import Decimal
 
-import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation, analysis
 from pipeline import utilities
 
-############## Dataset #################
+# ================== Dataset ==================
 path = os.path.join('.','data','extracellular','datafiles')
 fnames = os.listdir(path)
 
 for fname in fnames:
     try:
-        nwb = h5.File(os.path.join(path,fname), 'r')
+        nwb = h5.File(os.path.join(path, fname), 'r')
         print(f'File loaded: {fname}')
     except:
         print('=================================')
@@ -29,242 +28,210 @@ for fname in fnames:
         print('=================================')
         continue
 
-    ############################ METADATA ############################
-    
-    # ==================== subject ====================
-    subject_id = nwb['general']['subject']['subject_id'].value.decode('UTF-8')
-    desc = nwb['general']['subject']['description'].value.decode('UTF-8')
-    sex = nwb['general']['subject']['sex'].value.decode('UTF-8')
-    species = nwb['general']['subject']['species'].value.decode('UTF-8')
-    age = nwb['general']['subject']['age'].value.decode('UTF-8')
-    genotype = nwb['general']['subject']['genotype'].value.decode('UTF-8')
-        
+    # ========================== METADATA ==========================
+    # ==================== Subject ====================
+    subject_info = {c: nwb['general']['subject'][c].value.decode('UTF-8')
+                    for c in ('subject_id', 'description', 'sex', 'species', 'age', 'genotype')}
+    # force subject_id to be lower-case for consistency
+    subject_info['subject_id'] = subject_info['subject_id'].lower()
+
     # dob and sex
-    sex = sex[0].upper()
-    dob = re.search('(?<=dateOfBirth:\s)(.*)(?=\n)',desc)
-    dob = utilities.parse_prefix(dob.group())
+    subject_info['sex'] = subject_info['sex'][0].upper()
+    dob_str = re.search('(?<=dateOfBirth:\s)(.*)(?=\n)', subject_info['description'])
+    if utilities.parse_prefix(dob_str.group()) is not None:
+        subject_info['date_of_birth'] = utilities.parse_prefix(dob_str.group())
     
     # source and strain
-    strain_str = re.search('(?<=animalStrain:\s)(.*)',desc) # extract the information related to animal strain
+    strain_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']) # extract the information related to animal strain
     if strain_str is not None: # if found, search found string to find matched strain in db
         for s in subject.StrainAlias.fetch():
-            m = re.search(s[0], strain_str.group()) 
-            if (m is not None):
-                strain = (subject.StrainAlias & {'strain_alias':s[0]}).fetch1('strain')
+            m = re.search(re.escape(s[0]), strain_str.group(), re.I) 
+            if m is not None:
+                subject_info['strain'] = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
                 break
-    source_str = re.search('(?<=animalSource:\s)(.*)',desc) # extract the information related to animal strain
-    if source_str is not None: # if found, search found string to find matched strain in db
+    source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
+    if source_str is not None:  # if found, search found string to find matched strain in db
         for s in reference.AnimalSourceAlias.fetch():
-            m = re.search(s[0], source_str.group()) 
-            if (m is not None):
-                animal_source = (reference.AnimalSourceAlias & {'animal_source_alias':s[0]}).fetch1('animal_source')
+            m = re.search(re.escape(s[0]), source_str.group(), re.I) 
+            if m is not None:
+                subject_info['animal_source'] = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
                 break
             
-    if dob is not None:
-        subject.Subject.insert1(
-                {'subject_id':subject_id,
-                 'species':species,
-                 'strain':strain,
-                 'animal_source':animal_source,
-                 'sex': sex,
-                 'date_of_birth': dob,
-                 'subject_description':desc}, 
-                 skip_duplicates=True)
-    else: 
-        subject.Subject.insert1(
-                {'subject_id':subject_id,
-                 'species':species,
-                 'strain':strain,
-                 'animal_source':animal_source,
-                 'sex': sex,
-                 'subject_description':desc}, 
-                 skip_duplicates=True)
+    if subject_info not in subject.Subject.proj():
+        subject.Subject.insert1(subject_info, ignore_extra_fields=True)
 
     # ==================== session ====================
-    experiment_description = nwb['general']['experiment_description'].value
-    experimenter = np.array(nwb['general']['experimenter'])
-    institution = nwb['general']['institution'].value
-    related_publications = nwb['general']['related_publications'].value.decode('UTF-8') 
-    #session_id = nwb['general']['session_id'].value
-    surgery = nwb['general']['surgery'].value.decode('UTF-8')
-    identifier = nwb['identifier'].value
-    nwb_version = nwb['nwb_version'].value
-    session_description = nwb['session_description'].value
-    session_start_time = nwb['session_start_time'].value
-
-    date_of_experiment = utilities.parse_prefix(session_start_time) # info here is incorrect (see identifier)
+    # -- session_time
+    session_time = utilities.parse_prefix(nwb['session_start_time'].value)  # info here is incorrect (see identifier)
     # due to incorrect info in "session_start_time" - temporary fix: use info in 'identifier'
-    date_of_experiment = re.split(';\s?',identifier)[-1].replace('T',' ')
-    date_of_experiment = utilities.parse_prefix(date_of_experiment) 
+    session_time = re.split(';\s?', nwb['identifier'].value)[-1].replace('T', ' ')
+    session_time = utilities.parse_prefix(session_time)
 
-    # experimenter and experiment type (possible multiple experimenters or types)
-    for k in np.arange(experimenter.size):
-        reference.Experimenter.insert1({'experimenter': experimenter.item(k)},skip_duplicates=True)
+    if session_time is not None:
+        session_info = dict(
+            experiment_description=nwb['general']['experiment_description'].value,
+            institution=nwb['general']['institution'].value,
+            related_publications=nwb['general']['related_publications'].value.decode('UTF-8'),
+            surgery=nwb['general']['surgery'].value.decode('UTF-8'),
+            identifier=nwb['identifier'].value,
+            nwb_version=nwb['nwb_version'].value,
+            session_note=nwb['session_description'].value,
+            session_time=session_time)
 
-    if date_of_experiment is not None: 
-        with acquisition.Session.connection.transaction:
-            acquisition.Session.insert1(            
-                        {'subject_id':subject_id,
-                         'session_time': date_of_experiment,
-                         'session_note': session_description
-                         },skip_duplicates=True)
-            for k in np.arange(experimenter.size):
-                acquisition.Session.Experimenter.insert1(            
-                            {'subject_id':subject_id,
-                             'session_time': date_of_experiment,
-                             'experimenter': experimenter.item(k)
-                             },skip_duplicates=True)
-            # there is still the ExperimentType part table here...
-            print(f'Creating Session - Subject: {subject_id} - Date: {date_of_experiment}')
+        experimenters = nwb['general']['experimenter'].value
+        # experimenter and experiment type (possible multiple experimenters or types)
+        experimenters = [experimenters] if np.array(
+            experimenters).size <= 1 else experimenters  # in case there's only 1 experimenter
+
+        reference.Experimenter.insert(({'experimenter': k} for k in experimenters
+                                       if {'experimenter': k} not in reference.Experimenter))
+
+        if dict(subject_info, session_time=session_time) not in acquisition.Session.proj():
+            with acquisition.Session.connection.transaction:
+                acquisition.Session.insert1({**subject_info, **session_info}, ignore_extra_fields=True)
+                acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k) for k in experimenters), ignore_extra_fields=True)
+                # there is still the ExperimentType part table here...
+            print(f'Creating Session - Subject: {subject_info["subject_id"]} - Date: {session_info["session_time"]}')
 
     # ==================== Trials ====================
-    key = {'subject_id': subject_id, 'session_time': date_of_experiment}
-    trial_type_choices = {'L':'lick left','R':'lick right'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
-    trial_resp_choices = {'Hit':'correct','Err':'incorrect','NoLick':'no response','LickEarly':'early lick'} # map the hardcoded trial description read from data to the lookup table 'reference.TrialResponse'
-    photostim_period_choices = {1:'sample', 2:'delay', 3:'response'} 
-    # -- read data -- nwb['epochs']
-    trial_names = []
-    tags = []
-    start_times = []
-    stop_times = []
-    for trial in list(nwb['epochs']):
-        trial_names.append(trial)
-        tags.append(nwb['epochs'][trial]['tags'].value)
-        start_times.append(nwb['epochs'][trial]['start_time'].value)
-        stop_times.append(nwb['epochs'][trial]['stop_time'].value)
-    
-    # -- read data -- nwb['analysis']
-    trial_type_string = np.array(nwb['analysis']['trial_type_string'])
-    trial_type_mat = np.array(nwb['analysis']['trial_type_mat'])
-    # -- read data -- nwb['stimulus']['presentation'])
+    trial_key = {'subject_id': subject_info["subject_id"], 'session_time': session_info["session_time"]}
+    # map the hardcoded trial description (from 'reference.TrialType')
+    trial_type_choices = {'L': 'lick left',
+                          'R': 'lick right'}
+    # map the hardcoded trial description (from 'reference.TrialResponse')
+    trial_resp_choices = {'Hit': 'correct',
+                          'Err': 'incorrect',
+                          'NoLick': 'no response',
+                          'LickEarly': 'early lick'}
+    photostim_period_choices = {1: 'sample', 2: 'delay', 3: 'response'}
+
+    # -- read trial-related info -- nwb['epochs'], nwb['analysis'], nwb['stimulus']['presentation'])
     cue_duration = 0.1  # hard-coded the fact that an auditory cue last 0.1 second
-    auditory_cue = np.array(nwb['stimulus']['presentation']['auditory_cue']['timestamps'])
-    pole_in_times = np.array(nwb['stimulus']['presentation']['pole_in']['timestamps'])
-    pole_out_times = np.array(nwb['stimulus']['presentation']['pole_out']['timestamps'])
-    
+    trial_details = dict(trial_names=[t for t in nwb['epochs']],
+                         tags=[nwb['epochs'][t]['tags'].value for t in nwb['epochs']],
+                         start_times=[nwb['epochs'][t]['start_time'].value for t in nwb['epochs']],
+                         stop_times=[nwb['epochs'][t]['stop_time'].value for t in nwb['epochs']],
+                         trial_type_string=np.array(nwb['analysis']['trial_type_string']),
+                         trial_type_mat=np.array(nwb['analysis']['trial_type_mat']),
+                         cue_start_times=np.array(nwb['stimulus']['presentation']['auditory_cue']['timestamps']),
+                         cue_end_times=np.array(nwb['stimulus']['presentation']['auditory_cue']['timestamps']) + cue_duration,  # hard-coded cue_end time here
+                         pole_in_times=np.array(nwb['stimulus']['presentation']['pole_in']['timestamps']),
+                         pole_out_times=np.array(nwb['stimulus']['presentation']['pole_out']['timestamps']))
+
     # form new key-values pair and insert key
-    key['trial_counts'] = len(trial_names)
-    acquisition.TrialSet.insert1(key, skip_duplicates=True, allow_direct_insert=True)
-    print(f'Inserted trial set for session: Subject: {subject_id} - Date: {date_of_experiment}')
-    print('Inserting trial ID: ', end="")
-    
-    # loop through each trial and insert
-    for idx, trial_id in enumerate(trial_names):
-        trial_id = int(re.search('(\d+)',trial_id).group())
-        key['trial_id'] = trial_id
-        # -- start/stop time
-        key['start_time'] = start_times[idx]
-        key['stop_time'] = stop_times[idx]
-        # ======== Now add trial descriptors ====
-        # search through all keyword in trial descriptor tags (keywords are not in fixed order)
-        is_early_lick = False  # if a trial response is 'early lick', then it does not matter if that trial is a correct or incorrect lick anymore
-        for tag in tags[idx]:
-            # good/bad
-            key['trial_is_good'] = (re.match('good', tag, re.I) is not None)
-            # stim/no-stim
-            key['trial_stim_present'] = (re.match('non-stimulation',tag,re.I) is None)
-            # trial type: left/right lick
-            m = re.match('Hit|Err|NoLick',tag)
-            key['trial_type'] = 'non-performing' if (m is None) else trial_type_choices[tag[m.end()]]
-            # trial response type: correct, incorrect, early lick, no response
-            if not is_early_lick:
-                m = re.match('Hit|Err|NoLick|LickEarly',tag)
-                if m is None:
-                    key['trial_response'] = 'N/A'
-                else: 
-                    trial_resp_choices[m.group()]
-                    is_early_lick = True if m.group() == 'LickEarly' else False
-            # photo stim type: stimulation, inhibition, or N/A (for non-stim trial)
-            m = re.match('PhotoStimulation|PhotoInhibition', tag, re.I)
-            key['photo_stim_type'] = 'N/A' if (m is None) else m.group().replace('Photo','').lower()
-        # insert
-        acquisition.TrialSet.Trial.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        # ======== Now add trial event timing to the TrialInfo part table ====
-        # -- events timing
-        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_start', event_time = start_times[idx]),
-                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='trial_stop', event_time = stop_times[idx]),
-                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='cue_start', event_time = auditory_cue[idx]),
-                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='cue_end', event_time = auditory_cue[idx] + cue_duration),  
-                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)  # hard-coded cue_end time here 
-        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_in', event_time = pole_in_times[idx]),
-                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        acquisition.TrialSet.EventTime.insert1(dict(key, trial_event='pole_out', event_time = pole_out_times[idx]),
-                                               ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)          
-        # ======== Now add trial stimulation descriptors to the TrialStimInfo table ====
-        key['photo_stim_period'] = 'N/A' if trial_type_mat[-5,idx] == 0 else photostim_period_choices[trial_type_mat[-5,idx]]
-        key['photo_stim_power'] = trial_type_mat[-4,idx]
-        key['photo_loc_galvo_x'] = trial_type_mat[-3,idx]
-        key['photo_loc_galvo_y'] = trial_type_mat[-2,idx]
-        key['photo_loc_galvo_z'] = trial_type_mat[-1,idx]
-        # insert
-        acquisition.TrialStimInfo.insert1(key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
-        print(f'{trial_id} ',end="")
-    print('')
+    trial_key['trial_counts'] = len(trial_details['trial_names'])
+    if trial_key not in acquisition.TrialSet.proj():
+        acquisition.TrialSet.insert1(trial_key, allow_direct_insert=True)
+        print(f'Inserted trial set for: Subject: {subject_info["subject_id"]} - Date: {session_info["session_time"]}')
+        print('Inserting trial ID: ', end="")
+        # loop through each trial and insert
+        for idx, trial_id in enumerate(trial_details['trial_names']):
+            trial_id = int(re.search('(\d+)', trial_id).group())
+            trial_key['trial_id'] = trial_id
+            # -- start/stop time
+            trial_key['start_time'] = trial_details['start_times'][idx]
+            trial_key['stop_time'] = trial_details['stop_times'][idx]
+            # ======== Now add trial descriptors ====
+            # search through all keyword in trial descriptor tags (keywords are not in fixed order)
+            tag_key = {}
+            tag_key['trial_is_good'] = False
+            tag_key['trial_stim_present'] = True
+            tag_key['trial_type'] = 'non-performing'
+            tag_key['trial_response'], tag_key['photo_stim_type'] = 'N/A', 'N/A'
+            for tag in trial_details['tags'][idx]:
+                # good/bad
+                if not tag_key['trial_is_good']:
+                    tag_key['trial_is_good'] = (re.match('good', tag, re.I) is not None)
+                # stim/no-stim
+                if tag_key['trial_stim_present']:
+                    tag_key['trial_stim_present'] = (re.match('non-stimulation', tag, re.I) is None)
+                # trial type: left/right lick
+                if tag_key['trial_type'] == 'non-performing':
+                    m = re.match('Hit|Err|NoLick', tag)
+                    tag_key['trial_type'] = 'non-performing' if (m is None) else trial_type_choices[tag[m.end()]]
+                # trial response type: correct, incorrect, early lick, no response
+                if tag_key['trial_response'] == 'N/A' or tag_key['trial_response'] != 'early lick':
+                    m = re.match('Hit|Err|NoLick|LickEarly', tag)
+                    if m: m.group()
+                    tag_key['trial_response'] = trial_resp_choices[m.group()] if m else tag_key['trial_response']
+                # photo stim type: stimulation, inhibition, or N/A (for non-stim trial)
+                if tag_key['photo_stim_type'] == 'N/A':
+                    m = re.match('PhotoStimulation|PhotoInhibition', tag, re.I)
+                    tag_key['photo_stim_type'] = 'N/A' if (m is None) else m.group().replace('Photo','').lower()
+            # insert
+            acquisition.TrialSet.Trial.insert1({**trial_key, **tag_key},
+                                               ignore_extra_fields=True, allow_direct_insert=True)
+            # ======== Now add trial event timing to the TrialInfo part table ====
+            # -- events timing
+            acquisition.TrialSet.EventTime.insert((dict(trial_key, trial_event=k, event_time = trial_details[e][idx])
+                                                    for k, e in zip(('trial_start', 'trial_stop', 'cue_start',
+                                                                     'cue_end', 'pole_in', 'pole_out'),
+                                                                    ('start_times', 'stop_times', 'cue_start_times',
+                                                                     'cue_end_times', 'pole_in_times', 'pole_out_times'))),
+                                                   ignore_extra_fields=True, allow_direct_insert=True)
+
+            # ======== Now add trial stimulation descriptors to the TrialStimInfo table ====
+            trial_key['photo_stim_period'] = ('N/A' if trial_details['trial_type_mat'][-5, idx] == 0
+                                              else photostim_period_choices[trial_details['trial_type_mat'][-5, idx]])
+            trial_key['photo_stim_power'] = trial_details['trial_type_mat'][-4, idx]
+            trial_key['photo_loc_galvo_x'] = trial_details['trial_type_mat'][-3, idx]
+            trial_key['photo_loc_galvo_y'] = trial_details['trial_type_mat'][-2, idx]
+            trial_key['photo_loc_galvo_z'] = trial_details['trial_type_mat'][-1, idx]
+            # insert
+            acquisition.TrialStimInfo.insert1(trial_key, ignore_extra_fields=True, allow_direct_insert=True)
+            print(f'{trial_id} ', end="")
+        print('')
 
     # ==================== Extracellular ====================
     # -- read data - devices
     device_names = list(nwb['general']['devices'])
     # -- read data - electrodes
     electrodes = nwb['general']['extracellular_ephys']['electrodes']
-    probe_placement_brain_loc = electrodes[0][5].decode('UTF-8')  # get probe placement from 0th electrode (should be the same for all electrodes)
-    probe_placement_brain_loc = re.search("(?<=\[\')(.*)(?=\'\])",probe_placement_brain_loc).group()
-    
-    # hemisphere: left-hemisphere is ipsi, so anything contra is right
-    brain_region, hemi = utilities.get_brain_hemisphere(probe_placement_brain_loc)
-    
+    # get probe placement from 0th electrode (should be the same for all electrodes)
+    probe_placement_brain_loc = electrodes[0][5].decode('UTF-8')
+    probe_placement_brain_loc = re.search("(?<=\[\')(.*)(?=\'\])", probe_placement_brain_loc).group()
+
     # -- Probe
-    reference.Probe.insert1(
-            {'probe_name' : device_names[0], 
-             'channel_counts' : len(electrodes) },skip_duplicates=True)
-    for electrode in electrodes:       
-        shank_id = electrode[-2].decode('UTF-8')
-        shank_id = int(re.search('\d+',shank_id).group())
-        reference.Probe.Channel.insert1(
-                {'probe_name' : device_names[0], 
-                 'channel_id' : electrode[0],
-                 'channel_x_pos' : electrode[1],
-                 'channel_y_pos' : electrode[2],
-                 'channel_z_pos' : electrode[3],
-                 'shank_id' : shank_id},skip_duplicates=True)
+    if {'probe_name': device_names[0], 'channel_counts': len(electrodes)} not in reference.Probe.proj():
+        reference.Probe.insert1(
+                {'probe_name': device_names[0],
+                 'channel_counts': len(electrodes)})
+        reference.Probe.Channel.insert((
+            {'probe_name': device_names[0], 'channel_counts': len(electrodes), 'channel_id': electrode[0],
+             'channel_x_pos': electrode[1], 'channel_y_pos': electrode[2], 'channel_z_pos': electrode[3],
+             'shank_id' : int(re.search('\d+', electrode[-2].decode('UTF-8')).group())}
+            for electrode in electrodes))
+
     # -- BrainLocation
-    reference.BrainLocation.insert1(
-            {'brain_region': probe_placement_brain_loc,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi},skip_duplicates=True)
+    # hemisphere: left-hemisphere is ipsi, so anything contra is right
+    brain_region, hemisphere = utilities.get_brain_hemisphere(probe_placement_brain_loc)
+    brain_location = {'brain_region': brain_region,
+                      'brain_subregion': 'N/A',
+                      'cortical_layer': 'N/A',
+                      'hemisphere': hemisphere}
+    # -- BrainLocation
+    if brain_location not in reference.BrainLocation.proj():
+        reference.BrainLocation.insert1(brain_location)
     # -- ActionLocation
     ground_coordinates = nwb['general']['extracellular_ephys']['ground_coordinates'].value  # using 'ground_coordinates' here as the x, y, z for where the probe is placed in the brain, TODO double check if this is correct
-    coordinate_ref = 'bregma' 
-    reference.ActionLocation.insert1(
-            {'brain_region': probe_placement_brain_loc,
-             'brain_subregion':'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi,
-             'coordinate_ref': coordinate_ref,
-             'coordinate_ap':ground_coordinates[0],
-             'coordinate_ml':ground_coordinates[1],
-             'coordinate_dv':ground_coordinates[2]}, skip_duplicates=True)
+    action_location = dict(brain_location,
+                           coordinate_ref='bregma',
+                           coordinate_ap=round(Decimal(str(ground_coordinates[0])), 2),
+                           coordinate_ml=round(Decimal(str(ground_coordinates[1])), 2),
+                           coordinate_dv=round(Decimal(str(ground_coordinates[2])), 2))
+    if action_location not in reference.ActionLocation.proj():
+        reference.ActionLocation.insert1(action_location)
+
     # -- ProbeInsertion
-    acquisition.ProbeInsertion.insert1(
-            {'subject_id' : subject_id,
-             'session_time': date_of_experiment,
-             'brain_region': probe_placement_brain_loc,
-             'brain_subregion' : 'N/A',
-             'cortical_layer': 'N/A',
-             'hemisphere': hemi,
-             'coordinate_ref': coordinate_ref,
-             'coordinate_ap':ground_coordinates[0],
-             'coordinate_ml':ground_coordinates[1],
-             'coordinate_dv':ground_coordinates[2],
-             'probe_name' : device_names[0]}, skip_duplicates=True)
+    probe_insertion = dict({**subject_info, **session_info, **action_location},
+                           probe_name=device_names[0], channel_counts=len(electrodes))
+
+    if probe_insertion not in acquisition.ProbeInsertion.proj():
+        acquisition.ProbeInsertion.insert1(probe_insertion, ignore_extra_fields=True)
 
     # ==================== Photo stimulation ====================
     # -- Device
-    stim_device = 'laser' # hard-coded here..., could not find a more specific name from metadata 
-    stimulation.PhotoStimDevice.insert1({'device_name':stim_device}, skip_duplicates=True)
+    stim_device = 'laser'  # hard-coded here..., could not find a more specific name from metadata
 
     # -- read data - optogenetics
     opto_site_name = list(nwb['general']['optogenetics'].keys())[0]
@@ -276,76 +243,63 @@ for fname in fnames:
     brain_region = re.search('(?<=atlas location:\s)(.*)', opto_location).group()
     
     # hemisphere: left-hemisphere is ipsi, so anything contra is right
-    brain_region, hemi = utilities.get_brain_hemisphere(brain_region)
+    brain_region, hemisphere = utilities.get_brain_hemisphere(brain_region)
     
     # if no brain region (NA, or N/A, or ' '), skip photostim insert
     if re.search('\s+|N/?A', brain_region) is None:
-        
-        coord_ap_ml_dv = re.search('(?<=\[)(.*)(?=\])', opto_location).group()
-        coord_ap_ml_dv = re.split(',',coord_ap_ml_dv)
 
         # -- BrainLocation
-        reference.BrainLocation.insert1(
-                {'brain_region': brain_region,
-                 'brain_subregion':'N/A',
-                 'cortical_layer': 'N/A',
-                 'hemisphere': hemi},skip_duplicates=True)
-        
+        brain_location = {'brain_region': brain_region,
+                          'brain_subregion': 'N/A',
+                          'cortical_layer': 'N/A',
+                          'hemisphere': hemisphere}
+        if brain_location not in reference.BrainLocation.proj():
+            reference.BrainLocation.insert1(brain_location)
         # -- ActionLocation
-        coordinate_ref = 'bregma' # double check!!
-        reference.ActionLocation.insert1(
-                {'brain_region': brain_region,
-                 'brain_subregion':'N/A',
-                 'cortical_layer': 'N/A',
-                 'hemisphere': hemi,
-                 'coordinate_ref': coordinate_ref,
-                 'coordinate_ap': float(coord_ap_ml_dv[0]),
-                 'coordinate_ml': float(coord_ap_ml_dv[1]),
-                 'coordinate_dv': float(coord_ap_ml_dv[2])},skip_duplicates=True)
-            
+        coord_ap_ml_dv = re.search('(?<=\[)(.*)(?=\])', opto_location).group()
+        coord_ap_ml_dv = re.split(',', coord_ap_ml_dv)
+        action_location = dict(brain_location,
+                               coordinate_ref='bregma',
+                               coordinate_ap=round(Decimal(coord_ap_ml_dv[0]), 2),
+                               coordinate_ml=round(Decimal(coord_ap_ml_dv[1]), 2),
+                               coordinate_dv=round(Decimal(coord_ap_ml_dv[2]), 2))
+        if action_location not in reference.ActionLocation.proj():
+            reference.ActionLocation.insert1(action_location)
+
+        if {'device_name': stim_device} not in stimulation.PhotoStimDevice.proj():
+            stimulation.PhotoStimDevice.insert1({'device_name': stim_device})
+
         # -- PhotoStimulationInfo
-        stimulation.PhotoStimulationInfo.insert1(
-                {'brain_region': brain_region,
-                 'brain_subregion':'N/A',
-                 'cortical_layer': 'N/A',
-                 'hemisphere': hemi,
-                 'coordinate_ref': coordinate_ref,
-                 'coordinate_ap':float(coord_ap_ml_dv[0]),
-                 'coordinate_ml':float(coord_ap_ml_dv[1]),
-                 'coordinate_dv':float(coord_ap_ml_dv[2]),
-                 'device_name':stim_device,
-                 'photo_stim_excitation_lambda': float(opto_excitation_lambda),
-                 'photo_stim_notes':f'{opto_site_name} - {opto_descs}'},skip_duplicates=True)          
+        photim_stim_info = dict(action_location,
+                                device_name=stim_device,
+                                photo_stim_excitation_lambda=float(opto_excitation_lambda),
+                                photo_stim_notes=(f'{opto_site_name} - {opto_descs}'))
+        if photim_stim_info not in stimulation.PhotoStimulationInfo.proj():
+            stimulation.PhotoStimulationInfo.insert1(photim_stim_info)
     
-        # -- PhotoStimulation 
-        # only 1 photostim per session, perform at the same time with session
-        photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
-        photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value   
-        # if the dataset does not contain photostim timeseries, skip
-        if isinstance(photostim_data,np.ndarray):
-            acquisition.PhotoStimulation.insert1(
-                    {'subject_id':subject_id,
-                     'session_time': date_of_experiment,
-                     'photostim_datetime': date_of_experiment,
-                     'brain_region': brain_region,
-                     'brain_subregion':'N/A',
-                     'cortical_layer': 'N/A',
-                     'hemisphere': hemi,
-                     'coordinate_ref': coordinate_ref,
-                     'coordinate_ap':float(coord_ap_ml_dv[0]),
-                     'coordinate_ml':float(coord_ap_ml_dv[1]),
-                     'coordinate_dv':float(coord_ap_ml_dv[2]),
-                     'device_name':stim_device,
-                     'photo_stim_excitation_lambda': float(opto_excitation_lambda),
-                     'photostim_timeseries': photostim_data,
-                     'photostim_start_time': photostim_timestamps[0],
-                     'photostim_sampling_rate': 1/np.mean(np.diff(photostim_timestamps))},skip_duplicates=True) 
+        # -- PhotoStimulation
+        if dict({**subject_info, **session_info},
+                photostim_datetime = session_info['session_time']) not in acquisition.PhotoStimulation.proj():
+            # only 1 photostim per session, perform at the same time with session
+            photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
+            photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value
+            # if the dataset does not contain photostim timeseries set to None
+            photostim_data = None if not isinstance(photostim_data, np.ndarray) else photostim_data
+            photostim_timestamps = None if not isinstance(photostim_timestamps, np.ndarray) else photostim_timestamps
+            photostim_start_time = None if not isinstance(photostim_timestamps, np.ndarray) else photostim_timestamps[0]
+            photostim_sampling_rate = (None if not isinstance(photostim_timestamps, np.ndarray)
+                                       else 1/np.mean(np.diff(photostim_timestamps)))
+            acquisition.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
+                                                      photostim_datetime=session_info['session_time'],
+                                                      photostim_timeseries=photostim_data,
+                                                      photostim_start_time=photostim_start_time,
+                                                      photostim_sampling_rate=photostim_sampling_rate),
+                                                 ignore_extra_fields = True)
 
     # -- finish manual ingestion for this file
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
-
 # -- Ingest unit spike times
 acquisition.UnitSpikeTimes.populate()
 # -- UnitSpikeTimes trial-segmentation
