@@ -17,8 +17,6 @@ from pynwb import NWBFile, NWBHDF5IO
 # Each NWBFile represent a session, thus for every session in acquisition.Session, we build one NWBFile
 
 for session_key in acquisition.Session.fetch('KEY'):
-# if True:
-#     session_key = acquisition.Session.fetch('KEY')[0]
     this_session = (acquisition.Session & session_key).fetch1()
     # =============== General ====================
     # -- NWB file - a NWB2.0 file for each session
@@ -217,7 +215,6 @@ for session_key in acquisition.Session.fetch('KEY'):
         io.write(nwbfile)
         print(f'Write NWB 2.0 file: {save_file_name}')
 
-    # break
 
 
 
