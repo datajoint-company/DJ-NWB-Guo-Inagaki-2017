@@ -194,11 +194,11 @@ for fname in fnames:
     # -- Probe
     if {'probe_name': device_names[0], 'channel_counts': len(electrodes)} not in reference.Probe.proj():
         reference.Probe.insert1(
-                {'probe_name' : device_names[0],
-                 'channel_counts' : len(electrodes)})
+                {'probe_name': device_names[0],
+                 'channel_counts': len(electrodes)})
         reference.Probe.Channel.insert((
-            {'probe_name': device_names[0], 'channel_id': electrode[0],
-             'channel_x_pos' : electrode[1], 'channel_y_pos': electrode[2], 'channel_z_pos': electrode[3],
+            {'probe_name': device_names[0], 'channel_counts': len(electrodes), 'channel_id': electrode[0],
+             'channel_x_pos': electrode[1], 'channel_y_pos': electrode[2], 'channel_z_pos': electrode[3],
              'shank_id' : int(re.search('\d+', electrode[-2].decode('UTF-8')).group())}
             for electrode in electrodes))
 
@@ -224,7 +224,7 @@ for fname in fnames:
 
     # -- ProbeInsertion
     probe_insertion = dict({**subject_info, **session_info, **action_location},
-                           probe_name=device_names[0])
+                           probe_name=device_names[0], channel_counts=len(electrodes))
 
     if probe_insertion not in acquisition.ProbeInsertion.proj():
         acquisition.ProbeInsertion.insert1(probe_insertion, ignore_extra_fields=True)

@@ -19,11 +19,13 @@ schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_analysis')
 @schema
 class TrialSegmentationSetting(dj.Lookup):
     definition = """ 
+    trial_seg_setting: smallint
+    ---
     -> reference.ExperimentalEvent
     pre_stim_duration: decimal(4,2)  # (s) pre-stimulus duration
     post_stim_duration: decimal(4,2)  # (s) post-stimulus duration
     """
-    contents = [['pole_out', 1.5, 3]]
+    contents = [[0, 'pole_out', 1.5, 3]]
     
     
 @schema

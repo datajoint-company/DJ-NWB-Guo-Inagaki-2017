@@ -90,7 +90,7 @@ class BehaviorAcquisition(dj.Imported):
 class PhotoStimulation(dj.Manual):
     definition = """ # Photostimulus profile used for stimulation in this session
     -> Session
-    photostim_datetime: varchar(36) # the time of performing this stimulation with respect to start time of the session, in the scenario of multiple stimulations per session
+    photostim_datetime: datetime # the time of performing this stimulation with respect to start time of the session, in the scenario of multiple stimulations per session
     ---
     -> stimulation.PhotoStimulationInfo
     photostim_timeseries=null: longblob  # (mW)
@@ -243,7 +243,6 @@ class UnitSpikeTimes(dj.Imported):
             key['unit_cell_type'] = cell_type[unit_str]
             key.update(zip(('unit_x', 'unit_y', 'unit_z'), unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
-            print(key)
             self.insert1(key)
             print(f'{unit_id} ', end="")
         print('')
