@@ -17,26 +17,28 @@ from pynwb import NWBFile, NWBHDF5IO
 # Each NWBFile represent a session, thus for every session in acquisition.Session, we build one NWBFile
 
 for session_key in acquisition.Session.fetch('KEY'):
+# if True:
+#     session_key = acquisition.Session.fetch('KEY')[0]
     this_session = (acquisition.Session & session_key).fetch1()
     # =============== General ====================
     # -- NWB file - a NWB2.0 file for each session
     nwbfile = NWBFile(
-        session_description = this_session['session_note'],
-        identifier = '_'.join([this_session['subject_id'],
-                               this_session['session_time'].strftime('%Y-%m-%d_%H-%M-%S')]),
-        session_start_time = this_session['session_time'],
-        file_create_date = datetime.now(tzlocal()),
-        experimenter = '; '.join((acquisition.Session.Experimenter & session_key).fetch('experimenter')),
+        session_description=this_session['session_note'],
+        identifier='_'.join([this_session['subject_id'],
+                             this_session['session_time'].strftime('%Y-%m-%d_%H-%M-%S')]),
+        session_start_time=this_session['session_time'],
+        file_create_date=datetime.now(tzlocal()),
+        experimenter='; '.join((acquisition.Session.Experimenter & session_key).fetch('experimenter')),
         institution='Janelia Research Campus',  # TODO: not in pipeline
         related_publications='doi:10.1038/nature22324')  # TODO: not in pipeline
     # -- subject
     subj = (subject.Subject & session_key).fetch(as_dict=True)[0]
     nwbfile.subject = pynwb.file.Subject(
-        subject_id = this_session['subject_id'],
-        description = subj['subject_description'],
-        genotype = subj['strain'],
-        sex = subj['sex'],
-        species = subj['species'])
+        subject_id=this_session['subject_id'],
+        description=subj['subject_description'],
+        genotype=subj['strain'],
+        sex=subj['sex'],
+        species=subj['species'])
     # =============== Intracellular ====================
     cell = ((acquisition.Cell & session_key).fetch1()
             if (acquisition.Cell & session_key).fetch().size == 1
@@ -167,17 +169,23 @@ for session_key in acquisition.Session.fetch('KEY'):
                                   (reference.ActionLocation & photostim).fetch1().items()]),
             description=(stimulation.PhotoStimulationInfo & photostim).fetch1('photo_stim_notes'))
         nwbfile.add_ogen_site(stim_site)
-        nwbfile.add_stimulus(pynwb.ogen.OptogeneticSeries(
-            name='_'.join(['photostim_on', photostim['photostim_datetime'].strftime('%Y-%m-%d_%H-%M-%S')]),
-            site=stim_site,
-            unit = 'mW',
-            resolution = 0.0,
-            conversion = 1e-6,
-            data = photostim['photostim_timeseries'],
-            starting_time = photostim['photostim_start_time'],
-            rate = photostim['photostim_sampling_rate']))
+
+        if photostim['photostim_timeseries']:
+            nwbfile.add_stimulus(pynwb.ogen.OptogeneticSeries(
+                name='_'.join(['photostim_on', photostim['photostim_datetime'].strftime('%Y-%m-%d_%H-%M-%S')]),
+                site=stim_site,
+                unit = 'mW',
+                resolution = 0.0,
+                conversion = 1e-6,
+                data = photostim['photostim_timeseries'],
+                starting_time = photostim['photostim_start_time'],
+                rate = photostim['photostim_sampling_rate']))
 
     # =============== TrialSet ====================
+    # NWB 'trial' (of type dynamic table) by default comes with three mandatory attributes:
+    #                                                                       'id', 'start_time' and 'stop_time'.
+    # Other trial-related information needs to be added in to the trial-table as additional columns (with column name
+    # and column description)
     if (acquisition.TrialSet & session_key).fetch().size == 1:
         # Get trial descriptors from TrialSet.Trial and TrialStimInfo
         trial_columns = [{'name': tag,
@@ -185,12 +193,13 @@ for session_key in acquisition.Session.fetch('KEY'):
                               f'(?<={tag})(.*)', str((acquisition.TrialSet.Trial * acquisition.TrialStimInfo).heading)).group())}
                          for tag in (acquisition.TrialSet.Trial * acquisition.TrialStimInfo).fetch(as_dict=True, limit=1)[0].keys()
                          if tag not in (acquisition.TrialSet.Trial & acquisition.TrialStimInfo).primary_key + ['start_time', 'stop_time']]
-        # add new table columns to nwb epoch
+        # Add new table columns to nwb trial-table
         for c in trial_columns:
             nwbfile.add_trial_column(**c)
 
         photostim_tag_default = {tag: '' for tag in acquisition.TrialStimInfo.fetch(as_dict=True, limit=1)[0].keys()
                                  if tag not in acquisition.TrialStimInfo.primary_key}
+        # Add entry to the trial-table
         for trial in (acquisition.TrialSet.Trial & session_key).fetch(as_dict=True):
             photostim_tag = (acquisition.TrialStimInfo & trial).fetch(as_dict=True)
             trial_tag_value = {**trial, **photostim_tag[0]} if len(photostim_tag) == 1 else {**trial, **photostim_tag_default}
@@ -199,19 +208,16 @@ for session_key in acquisition.Session.fetch('KEY'):
             [trial_tag_value.pop(k) for k in acquisition.TrialSet.Trial.primary_key]
             nwbfile.add_trial(**trial_tag_value)
 
-
-
     # =============== Write NWB 2.0 file ===============
-    if True:
-        save_path = os.path.join('data', 'NWB 2.0')
-        save_file_name = ''.join([nwbfile.identifier, '.nwb'])
+    save_path = os.path.join('data', 'NWB 2.0')
+    save_file_name = ''.join([nwbfile.identifier, '.nwb'])
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    with NWBHDF5IO(os.path.join(save_path, save_file_name), mode = 'w') as io:
+        io.write(nwbfile)
+        print(f'Write NWB 2.0 file: {save_file_name}')
 
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        with NWBHDF5IO(os.path.join(save_path, save_file_name), mode = 'w') as io:
-            io.write(nwbfile)
-            print(f'Write NWB 2.0 file: {save_file_name}')
-
+    # break
 
 
 
