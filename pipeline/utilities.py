@@ -39,7 +39,7 @@ def find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment):
                 print(f'!!! error load file: {s}')   
                 continue
             # read subject_id out of this file
-            subject_id = temp_nwb['general']['subject']['subject_id'].value.decode('UTF-8')
+            subject_id = temp_nwb['general']['subject']['subject_id'].value.decode('UTF-8').lower()
             
             # -- session_time - due to error in extracellular dataset (session_start_time error), need to hard code here...
             if which_data == 'whole_cell':  # case: whole cell

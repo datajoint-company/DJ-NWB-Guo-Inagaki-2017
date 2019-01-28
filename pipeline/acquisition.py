@@ -243,6 +243,7 @@ class UnitSpikeTimes(dj.Imported):
             key['unit_cell_type'] = cell_type[unit_str]
             key.update(zip(('unit_x', 'unit_y', 'unit_z'), unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
+            print(key)
             self.insert1(key)
             print(f'{unit_id} ', end="")
         print('')

@@ -34,7 +34,7 @@ nwbfile = NWBFile(
     related_publications='doi:10.1038/nature22324')  # TODO: not in pipeline
 
 # -- subject
-subj = (subject.Subject & session_key).fetch(as_dict = True)[0]
+subj = (subject.Subject & session_key).fetch(as_dict=True)[0]
 nwbfile.subject = pynwb.file.Subject(
     subject_id = this_session['subject_id'],
     description = subj['subject_description'],
@@ -48,51 +48,50 @@ cell = ((acquisition.Cell & session_key).fetch1()
         else None)
 if cell:
     # metadata
-    whole_cell_device = nwbfile.create_device(name = cell['device_name'])
-    ic_electrode = nwbfile.create_ic_electrode(name = cell['cell_id'],
-                                               device = whole_cell_device,
-                                               description = 'N/A',
-                                               filtering = 'low-pass: 10kHz',  # TODO: not in pipeline
-                                               location = '; '.join([f'{k}: {str(v)}'
-                                                                     for k, v in
-                                                                     (
-                                                                                 reference.ActionLocation & cell).fetch1().items()]))
+    whole_cell_device = nwbfile.create_device(name=cell['device_name'])
+    ic_electrode = nwbfile.create_ic_electrode(
+        name=cell['cell_id'],
+        device=whole_cell_device,
+        description='N/A',
+        filtering='low-pass: 10kHz',  # TODO: not in pipeline
+        location='; '.join([f'{k}: {str(v)}'
+                            for k, v in (reference.ActionLocation & cell).fetch1().items()]))
     # acquisition - membrane potential
     mp, mp_start_time, mp_fs = (acquisition.IntracellularAcquisition.MembranePotential & cell).fetch1(
         'membrane_potential', 'membrane_potential_start_time', 'membrane_potential_sampling_rate')
-    nwbfile.add_acquisition(pynwb.icephys.PatchClampSeries(name = 'membrane_potential',
-                                                           electrode = ic_electrode,
-                                                           unit = 'mV',  # TODO: not in pipeline
-                                                           conversion = 1e-3,
-                                                           gain = 1.0,  # TODO: not in pipeline
-                                                           data = mp,
-                                                           starting_time = mp_start_time,
-                                                           rate = mp_fs))
+    nwbfile.add_acquisition(pynwb.icephys.PatchClampSeries(name='membrane_potential',
+                                                           electrode=ic_electrode,
+                                                           unit='mV',  # TODO: not in pipeline
+                                                           conversion=1e-3,
+                                                           gain=1.0,  # TODO: not in pipeline
+                                                           data=mp,
+                                                           starting_time=mp_start_time,
+                                                           rate=mp_fs))
     # acquisition - current injection
     current_injection, ci_start_time, ci_fs = (acquisition.IntracellularAcquisition.CurrentInjection & cell).fetch1(
         'current_injection', 'current_injection_start_time', 'current_injection_sampling_rate')
-    nwbfile.add_stimulus(pynwb.icephys.CurrentClampStimulusSeries(name = 'current_injection',
-                                                                  electrode = ic_electrode,
-                                                                  unit = 'nA',
-                                                                  conversion = 1e-6,
-                                                                  gain = 1.0,
-                                                                  data = current_injection,
-                                                                  starting_time = ci_start_time,
-                                                                  rate = ci_fs))
+    nwbfile.add_stimulus(pynwb.icephys.CurrentClampStimulusSeries(name='current_injection',
+                                                                  electrode=ic_electrode,
+                                                                  unit='nA',
+                                                                  conversion=1e-6,
+                                                                  gain=1.0,
+                                                                  data=current_injection,
+                                                                  starting_time=ci_start_time,
+                                                                  rate=ci_fs))
 
     # analysis - membrane potential without spike
     mp_wo_spike, mp_start_time, mp_fs = (acquisition.IntracellularAcquisition.MembranePotential & cell).fetch1(
         'membrane_potential_wo_spike', 'membrane_potential_start_time', 'membrane_potential_sampling_rate')
     mp_rmv_spike = nwbfile.create_processing_module(name='membrane_potential_spike_removal',
                                                     description='Spike removal')
-    mp_rmv_spike.add_data_interface(pynwb.icephys.PatchClampSeries(name = 'membrane_potential_without_spike',
-                                                        electrode = ic_electrode,
-                                                        unit = 'mV',
-                                                        conversion = 1e-3,
-                                                        gain = 1.0,
-                                                        data = mp_wo_spike,
-                                                        starting_time = mp_start_time,
-                                                        rate = mp_fs))
+    mp_rmv_spike.add_data_interface(pynwb.icephys.PatchClampSeries(name='membrane_potential_without_spike',
+                                                                   electrode=ic_electrode,
+                                                                   unit='mV',
+                                                                   conversion=1e-3,
+                                                                   gain=1.0,
+                                                                   data=mp_wo_spike,
+                                                                   starting_time=mp_start_time,
+                                                                   rate=mp_fs))
 
 # =============== Extracellular ====================
 probe_insertion = ((acquisition.ProbeInsertion & session_key).fetch1()
@@ -146,17 +145,17 @@ if behavior:
     lick_trace = pynwb.behavior.BehavioralTimeSeries(name = 'Lick Trace')
     nwbfile.add_acquisition(lick_trace)
     lick_trace.create_timeseries(name='lick_trace_left',
-                              unit = 'a.u.',
-                              conversion = 1.0,
-                              data = lt_left,
-                              starting_time = lt_start_time,
-                              rate = lt_fs)
+                                 unit='a.u.',
+                                 conversion=1.0,
+                                 data=lt_left,
+                                 starting_time=lt_start_time,
+                                 rate=lt_fs)
     lick_trace.create_timeseries(name='lick_trace_right',
-                              unit = 'a.u.',
-                              conversion = 1.0,
-                              data = lt_right,
-                              starting_time = lt_start_time,
-                              rate = lt_fs)
+                                 unit='a.u.',
+                                 conversion=1.0,
+                                 data=lt_right,
+                                 starting_time=lt_start_time,
+                                 rate=lt_fs)
 
 # =============== Photostimulation ====================
 photostim = ((acquisition.PhotoStimulation & session_key).fetch1()

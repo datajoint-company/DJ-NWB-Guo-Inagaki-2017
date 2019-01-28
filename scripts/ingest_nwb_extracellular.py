@@ -9,6 +9,7 @@ import re
 os.chdir('..')
 import h5py as h5
 import numpy as np
+from decimal import Decimal
 
 from pipeline import reference, subject, acquisition, stimulation, analysis
 from pipeline import utilities
@@ -215,9 +216,9 @@ for fname in fnames:
     ground_coordinates = nwb['general']['extracellular_ephys']['ground_coordinates'].value  # using 'ground_coordinates' here as the x, y, z for where the probe is placed in the brain, TODO double check if this is correct
     action_location = dict(brain_location,
                            coordinate_ref='bregma',
-                           coordinate_ap=np.around(ground_coordinates[0], 2),
-                           coordinate_ml=np.around(ground_coordinates[1], 2),
-                           coordinate_dv=np.around(ground_coordinates[2], 2))
+                           coordinate_ap=round(Decimal(str(ground_coordinates[0])), 2),
+                           coordinate_ml=round(Decimal(str(ground_coordinates[1])), 2),
+                           coordinate_dv=round(Decimal(str(ground_coordinates[2])), 2))
     if action_location not in reference.ActionLocation.proj():
         reference.ActionLocation.insert1(action_location)
 
@@ -258,10 +259,10 @@ for fname in fnames:
         coord_ap_ml_dv = re.search('(?<=\[)(.*)(?=\])', opto_location).group()
         coord_ap_ml_dv = re.split(',', coord_ap_ml_dv)
         action_location = dict(brain_location,
-                               coordinate_ref = 'bregma',
-                               coordinate_ap = np.around(float(coord_ap_ml_dv[0]), 2),
-                               coordinate_ml = np.around(float(coord_ap_ml_dv[1]), 2),
-                               coordinate_dv = np.around(float(coord_ap_ml_dv[2]), 2))
+                               coordinate_ref='bregma',
+                               coordinate_ap=round(Decimal(coord_ap_ml_dv[0]), 2),
+                               coordinate_ml=round(Decimal(coord_ap_ml_dv[1]), 2),
+                               coordinate_dv=round(Decimal(coord_ap_ml_dv[2]), 2))
         if action_location not in reference.ActionLocation.proj():
             reference.ActionLocation.insert1(action_location)
 
@@ -270,9 +271,9 @@ for fname in fnames:
 
         # -- PhotoStimulationInfo
         photim_stim_info = dict(action_location,
-                                device_name = stim_device,
-                                photo_stim_excitation_lambda = float(opto_excitation_lambda),
-                                photo_stim_notes = (f'{opto_site_name} - {opto_descs}'))
+                                device_name=stim_device,
+                                photo_stim_excitation_lambda=float(opto_excitation_lambda),
+                                photo_stim_notes=(f'{opto_site_name} - {opto_descs}'))
         if photim_stim_info not in stimulation.PhotoStimulationInfo.proj():
             stimulation.PhotoStimulationInfo.insert1(photim_stim_info)
     
@@ -289,10 +290,10 @@ for fname in fnames:
             photostim_sampling_rate = (None if not isinstance(photostim_timestamps, np.ndarray)
                                        else 1/np.mean(np.diff(photostim_timestamps)))
             acquisition.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
-                                                      photostim_datetime = session_info['session_time'],
-                                                      photostim_timeseries = photostim_data,
-                                                      photostim_start_time = photostim_start_time,
-                                                      photostim_sampling_rate = photostim_sampling_rate),
+                                                      photostim_datetime=session_info['session_time'],
+                                                      photostim_timeseries=photostim_data,
+                                                      photostim_start_time=photostim_start_time,
+                                                      photostim_sampling_rate=photostim_sampling_rate),
                                                  ignore_extra_fields = True)
 
     # -- finish manual ingestion for this file

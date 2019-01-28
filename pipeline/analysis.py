@@ -259,9 +259,10 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
             print(f'Warning: Out of bound poststimulus duration, pad {post_stim_nan_count} NaNs')
 
         event_sample_point = (event_time_point - first_time_point) * fs
-        sample_points_to_extract = range(event_sample_point - pre_stim_dur * fs,
-                                             event_sample_point + post_stim_dur * fs + 1)
-        segmented_data = data[sample_points_to_extract.astype(int)]    
+        
+        sample_points_to_extract = range((event_sample_point - pre_stim_dur * fs).astype(int),
+                                             (event_sample_point + post_stim_dur * fs + 1).astype(int))
+        segmented_data = data[sample_points_to_extract]    
         # pad with NaNs
         segmented_data = np.hstack((np.full(pre_stim_nan_count, np.nan), segmented_data,
                                     np.full(post_stim_nan_count, np.nan)))

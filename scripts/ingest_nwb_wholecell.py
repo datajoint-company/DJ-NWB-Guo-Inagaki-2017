@@ -9,6 +9,7 @@ import re
 os.chdir('..')
 import h5py as h5
 import numpy as np
+from decimal import Decimal
 
 import datajoint as dj
 from pipeline import reference, subject, acquisition, stimulation, analysis #, behavior, ephys, action
@@ -188,9 +189,9 @@ for fname in fnames:
     # -- ActionLocation
     action_location = dict(brain_location,
                            coordinate_ref='bregma',
-                           coordinate_ap=np.around(float(coord_ap_ml_dv[0]), 2),
-                           coordinate_ml=np.around(float(coord_ap_ml_dv[1]), 2),
-                           coordinate_dv=np.around(float(coord_ap_ml_dv[2]), 2))
+                           coordinate_ap=round(Decimal(coord_ap_ml_dv[0]), 2),
+                           coordinate_ml=round(Decimal(coord_ap_ml_dv[1]), 2),
+                           coordinate_dv=round(Decimal(coord_ap_ml_dv[2]), 2))
     if action_location not in reference.ActionLocation.proj():
         reference.ActionLocation.insert1(action_location)
     
@@ -231,9 +232,9 @@ for fname in fnames:
     # -- ActionLocation
     action_location = dict(brain_location,
                            coordinate_ref='bregma',
-                           coordinate_ap=np.around(float(coord_ap_ml_dv[0]), 2),
-                           coordinate_ml=np.around(float(coord_ap_ml_dv[1]), 2),
-                           coordinate_dv=np.around(float(coord_ap_ml_dv[2]), 2))
+                           coordinate_ap=round(Decimal(coord_ap_ml_dv[0]), 2),
+                           coordinate_ml=round(Decimal(coord_ap_ml_dv[1]), 2),
+                           coordinate_dv=round(Decimal(coord_ap_ml_dv[2]), 2))
     if action_location not in reference.ActionLocation.proj():
         reference.ActionLocation.insert1(action_location)
     
