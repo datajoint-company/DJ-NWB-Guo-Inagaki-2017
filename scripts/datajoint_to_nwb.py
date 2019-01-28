@@ -170,7 +170,7 @@ for session_key in acquisition.Session.fetch('KEY'):
             description=(stimulation.PhotoStimulationInfo & photostim).fetch1('photo_stim_notes'))
         nwbfile.add_ogen_site(stim_site)
 
-        if photostim['photostim_timeseries']:
+        if photostim['photostim_timeseries'] is not None:
             nwbfile.add_stimulus(pynwb.ogen.OptogeneticSeries(
                 name='_'.join(['photostim_on', photostim['photostim_datetime'].strftime('%Y-%m-%d_%H-%M-%S')]),
                 site=stim_site,
