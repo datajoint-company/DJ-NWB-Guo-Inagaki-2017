@@ -163,7 +163,7 @@ for fname in fnames:
                                                ignore_extra_fields=True, allow_direct_insert=True)
             # ======== Now add trial event timing to the TrialInfo part table ====
             # -- events timing
-            acquisition.TrialSet.EventTime.insert((dict(trial_key, trial_event=k, event_time = trial_details[e][idx])
+            acquisition.TrialSet.EventTime.insert((dict(trial_key, trial_event=k, event_time=trial_details[e][idx])
                                                     for k, e in zip(('trial_start', 'trial_stop', 'cue_start',
                                                                      'cue_end', 'pole_in', 'pole_out'),
                                                                     ('start_times', 'stop_times', 'cue_start_times',
@@ -303,4 +303,5 @@ for fname in fnames:
 # -- Ingest unit spike times
 acquisition.UnitSpikeTimes.populate()
 # -- UnitSpikeTimes trial-segmentation
+analysis.RealignedEvent.populate()
 analysis.TrialSegmentedUnitSpikeTimes.populate()

@@ -49,7 +49,11 @@ class RealignedEvent(dj.Computed):
         event_of_interest, pre_stim_dur, post_stim_dur = (TrialSegmentationSetting & key).fetch1(
             'event', 'pre_stim_duration', 'post_stim_duration')
         # get event time
-        eoi_time_point = get_event_time(event_of_interest, key)
+        try: 
+            eoi_time_point = get_event_time(event_of_interest, key)
+        except EventChoiceError as e:
+            print(f'Trial segmentation error - Msg: {str(e)}')
+            return
         # get all other events for this trial
         events, event_times = (acquisition.TrialSet.EventTime & key).fetch('trial_event', 'event_time')
         self.RealignedEventTime.insert(dict(key,
@@ -276,12 +280,12 @@ def get_event_time(event_name, key):
     # get event time
     try:
         t = (acquisition.TrialSet.EventTime & key & {'trial_event': event_name}).fetch1('event_time')
-        if np.isnan(t):
-            raise EventChoiceError(event_name)
-        else:
-            return t
     except:
-        raise EventChoiceError(event_name)
+        raise EventChoiceError(event_name, f'{event_name}: event not found')  
+    if np.isnan(t):
+        raise EventChoiceError(event_name, msg=f'{event_name}: event_time is nan')
+    else:
+        return t
     
     
 class EventChoiceError(Exception):
