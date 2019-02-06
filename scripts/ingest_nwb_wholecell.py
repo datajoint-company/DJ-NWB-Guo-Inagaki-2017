@@ -109,17 +109,17 @@ for fname in fnames:
     # ==================== Trials ====================
     trial_key = {'subject_id': subject_info["subject_id"], 'session_time': session_info["session_time"]}
     # -- read trial-related info -- nwb['epochs'], nwb['analysis'], nwb['stimulus']['presentation'])
-    trial_details = dict(trial_names=[t for t in nwb['epochs']],
-                         trial_descs=[nwb['epochs'][t]['description'].value for t in nwb['epochs']],
-                         start_times=[nwb['epochs'][t]['start_time'].value for t in nwb['epochs']],
-                         stop_times=[nwb['epochs'][t]['stop_time'].value for t in nwb['epochs']],
-                         good_trials=np.array(nwb['analysis']['good_trials']),
-                         trial_type_string=np.array(nwb['analysis']['trial_type_string']),
-                         trial_type_mat=np.array(nwb['analysis']['trial_type_mat']),
-                         cue_start_times=np.array(nwb['stimulus']['presentation']['cue_start']['timestamps']),
-                         cue_end_times=np.array(nwb['stimulus']['presentation']['cue_end']['timestamps']),
-                         pole_in_times=np.array(nwb['stimulus']['presentation']['pole_in']['timestamps']),
-                         pole_out_times=np.array(nwb['stimulus']['presentation']['pole_out']['timestamps']))
+    trial_details = dict(trial_names=[tr for tr in nwb['epochs']],
+                         trial_descs=[v['description'].value for v in nwb['epochs'].values()],
+                         start_times=[v['start_time'].value for v in nwb['epochs'].values()],
+                         stop_times=[v['stop_time'].value for v in nwb['epochs'].values()],
+                         good_trials=nwb['analysis']['good_trials'].value,
+                         trial_type_string=nwb['analysis']['trial_type_string'].value,
+                         trial_type_mat=nwb['analysis']['trial_type_mat'].value,
+                         cue_start_times=nwb['stimulus']['presentation']['cue_start']['timestamps'].value,
+                         cue_end_times=nwb['stimulus']['presentation']['cue_end']['timestamps'].value,
+                         pole_in_times=nwb['stimulus']['presentation']['pole_in']['timestamps'].value,
+                         pole_out_times=nwb['stimulus']['presentation']['pole_out']['timestamps'].value)
 
     # form new key-values pair and insert key
     trial_key['trial_counts'] = len(trial_details['trial_names'])
@@ -218,7 +218,7 @@ for fname in fnames:
                                         .value.decode('UTF-8')).group())
     splittedstr = re.split(',\s?coordinates:\s?', nwb['general']['optogenetics'][opto_site_name]['location'].value.decode('UTF-8'))
     brain_region = splittedstr[0]
-    coord_ap_ml_dv = re.findall('\d+.\d+', splittedstr[-1])
+    coord_ap_ml_dv = re.findall('\d+\.\d+', splittedstr[-1])
     
     # hemisphere: left-hemisphere is ipsi, so anything contra is right-hemisphere
     brain_region, hemisphere = utilities.get_brain_hemisphere(brain_region)
@@ -267,6 +267,8 @@ for fname in fnames:
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
+print('======== Populate() Routine =====')
+os.chdir('scripts')
 # -- Intracellular
 acquisition.IntracellularAcquisition.populate()
 # -- Behavioral
