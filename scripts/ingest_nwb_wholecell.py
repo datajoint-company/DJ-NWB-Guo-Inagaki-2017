@@ -6,25 +6,22 @@ Created on Mon Dec  3 16:22:42 2018
 """
 import os
 import re
-os.chdir('..')
+
 import h5py as h5
 import numpy as np
 from decimal import Decimal
-
 import datajoint as dj
-from pipeline import reference, subject, acquisition, stimulation, analysis #, behavior, ephys, action
-from pipeline import utilities
+
+from pipeline import (reference, subject, acquisition, stimulation, analysis,
+                      intracellular, extracellular, behavior, utilities)
 
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(stimulation) + dj.ERD(acquisition) + dj.ERD(analysis) #+ dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(action)
+all_erd = (dj.ERD(reference) + dj.ERD(subject)
+           + dj.ERD(stimulation) + dj.ERD(acquisition)
+           + dj.ERD(analysis) + dj.ERD(behavior)
+           + dj.ERD(intracellular) + dj.ERD(extracellular))
 all_erd.save('./images/all_erd.png')
-
-acq_erd = dj.ERD(acquisition)
-acq_erd.save('./images/acquisition_erd.png')
-
-analysis_erd = dj.ERD(analysis)
-analysis_erd.save('./images/analysis_erd.png')
 
 # ================== Dataset ==================
 path = os.path.join('.', 'data', 'whole_cell_nwb2.0')
@@ -53,25 +50,23 @@ for fname in fnames:
     if utilities.parse_prefix(dob_str.group()) is not None:
         subject_info['date_of_birth'] = utilities.parse_prefix(dob_str.group())
         
-    # source and strain
-    strain_str = re.search('(?<=Animal Strain:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
-    if strain_str is not None:  # if found, search found string to find matched strain in db
-        for s in subject.StrainAlias.fetch():
-            m = re.search(re.escape(s[0]), strain_str.group(), re.I) 
-            if m is not None:
-                subject_info['strain'] = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
-                break
-    source_str = re.search('(?<=Animal source:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
-    if source_str is not None:  # if found, search found string to find matched strain in db
-        for s in reference.AnimalSourceAlias.fetch():
-            m = re.search(re.escape(s[0]), source_str.group(), re.I) 
-            if m is not None:
-                subject_info['animal_source'] = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
-                break
+    # source
+    strain_str = re.search('(?<=Animal Strain:\s)(.*)', subject_info['description']).group()  # extract the information related to animal strain
+    strain_dict = {alias: strain for alias, strain in subject.StrainAlias.fetch()}
+    regex_str = ''.join([re.escape(alias) + '|' for alias in strain_dict.keys()])[:-1]
+    strains = [strain_dict[s] for s in re.findall(regex_str, strain_str)]
+    # strain
+    source_str = re.search('(?<=Animal source:\s)(.*)', subject_info['description']).group()  # extract the information related to animal strain
+    source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
+    regex_str = ''.join([re.escape(alias) + '|' for alias in source_dict.keys()])[:-1]
+    subject_info['animal_source'] = source_dict[re.search(regex_str, source_str, re.I).group().lower()] if re.search(regex_str, source_str, re.I) else 'N/A'
 
     if subject_info not in subject.Subject.proj():
-        subject.Subject.insert1(subject_info, ignore_extra_fields=True)
-    
+        with subject.Subject.connection.transaction:
+            subject.Subject.insert1(subject_info, ignore_extra_fields=True)
+            subject.Subject.Strain.insert((dict(subject_info, strain = k)
+                                           for k in strains), ignore_extra_fields = True)
+
     # ==================== session ====================
     # -- session_time
     session_time = utilities.parse_prefix(nwb['session_start_time'].value)
@@ -206,8 +201,8 @@ for fname in fnames:
                                   cell_id=cell_id,
                                   cell_type='N/A',
                                   device_name=ie_device)
-    if cell_key not in acquisition.Cell.proj():
-        acquisition.Cell.insert1(cell_key, ignore_extra_fields=True)
+    if cell_key not in intracellular.Cell.proj():
+        intracellular.Cell.insert1(cell_key, ignore_extra_fields=True)
 
     # ==================== Photo stimulation ====================    
     # -- read data - optogenetics
@@ -254,10 +249,10 @@ for fname in fnames:
     # -- PhotoStimulation 
     # only 1 photostim per session, perform at the same time with session
     if dict({**subject_info, **session_info}, 
-            photostim_datetime=session_info['session_time']) not in acquisition.PhotoStimulation.proj():   
+            photostim_datetime=session_info['session_time']) not in stimulation.PhotoStimulation.proj():
         photostim_data = nwb['stimulus']['presentation']['photostimulus']['data'].value
-        photostim_timestamps = nwb['stimulus']['presentation']['photostimulus']['timestamps'].value   
-        acquisition.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
+        photostim_timestamps = nwb['stimulus']['presentation']['photostimulus']['timestamps'].value
+        stimulation.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
                                                   photostim_datetime=session_info['session_time'],
                                                   photostim_timeseries=photostim_data,
                                                   photostim_start_time=photostim_timestamps[0],
@@ -270,11 +265,12 @@ for fname in fnames:
 print('======== Populate() Routine =====')
 os.chdir('scripts')
 # -- Intracellular
-acquisition.IntracellularAcquisition.populate()
+intracellular.MembranePotential.populate()
+intracellular.CurrentInjection.populate()
 # -- Behavioral
-acquisition.BehaviorAcquisition.populate()
+behavior.LickTrace.populate()
 # -- Perform trial segmentation
-analysis.TrialSegmentedBehavior.populate()
-analysis.TrialSegmentedIntracellular.populate()
-analysis.TrialSegmentedPhotoStimulus.populate()
+intracellular.TrialSegmentedMembranePotential.populate()
+intracellular.TrialSegmentedCurrentInjection.populate()
+stimulation.TrialSegmentedPhotoStimulus.populate()
 

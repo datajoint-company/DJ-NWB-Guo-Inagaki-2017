@@ -3,7 +3,7 @@ Schema of subject information.
 '''
 import datajoint as dj
 
-schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_reference')
+schema = dj.schema(dj.config.get('database.prefix', '') + 'reference')
 
 
 @schema
@@ -181,11 +181,3 @@ class TrialResponse(dj.Lookup):
     trial_response: varchar(32)
     """
     contents = zip(['correct', 'incorrect', 'no response', 'early lick', 'N/A'])
-
-@schema
-class TrialStimType(dj.Lookup):
-    definition = """ # The stimulation type of this trial, e.g. 'no stim', 'photo stimulation', 'photo inhibition'
-    trial_stim_type: varchar(32)
-    """
-    contents = zip(['no stim', 'photo stimulation', 'photo inhibition', 'N/A'])
-    
