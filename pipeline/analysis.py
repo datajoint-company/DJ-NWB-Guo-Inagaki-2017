@@ -52,7 +52,7 @@ class RealignedEvent(dj.Computed):
         try: 
             eoi_time_point = get_event_time(event_of_interest, key)
         except EventChoiceError as e:
-            print(f'Trial segmentation error - Msg: {str(e)}')
+            print(f'Event Choice error - Msg: {str(e)}')
             return
         # get all other events for this trial
         events, event_times = (acquisition.TrialSet.EventTime & key).fetch('trial_event', 'event_time')
@@ -77,11 +77,11 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
         pre_stim_nan_count = 0
         post_stim_nan_count = 0
         if event_time_point - pre_stim_dur < trial_start:
-            pre_stim_nan_count = (trial_start - (event_time_point - pre_stim_dur)) * fs
+            pre_stim_nan_count = int((trial_start - (event_time_point - pre_stim_dur)) * fs)
             pre_stim_dur = 0
             print(f'Warning: Out of bound prestimulus duration, pad {pre_stim_nan_count} NaNs')
         if event_time_point + post_stim_dur > trial_stop:
-            post_stim_nan_count = (event_time_point + post_stim_dur - trial_stop) * fs
+            post_stim_nan_count = int((event_time_point + post_stim_dur - trial_stop) * fs)
             post_stim_dur = trial_stop - event_time_point
             print(f'Warning: Out of bound poststimulus duration, pad {post_stim_nan_count} NaNs')
 

@@ -50,12 +50,12 @@ for fname in fnames:
     if utilities.parse_prefix(dob_str.group()) is not None:
         subject_info['date_of_birth'] = utilities.parse_prefix(dob_str.group())
         
-    # source
+    # strain
     strain_str = re.search('(?<=Animal Strain:\s)(.*)', subject_info['description']).group()  # extract the information related to animal strain
     strain_dict = {alias: strain for alias, strain in subject.StrainAlias.fetch()}
     regex_str = ''.join([re.escape(alias) + '|' for alias in strain_dict.keys()])[:-1]
     strains = [strain_dict[s] for s in re.findall(regex_str, strain_str)]
-    # strain
+    # source
     source_str = re.search('(?<=Animal source:\s)(.*)', subject_info['description']).group()  # extract the information related to animal strain
     source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
     regex_str = ''.join([re.escape(alias) + '|' for alias in source_dict.keys()])[:-1]

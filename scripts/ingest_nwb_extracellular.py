@@ -298,6 +298,8 @@ for fname in fnames:
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
+print('======== Populate() Routine =====')
+os.chdir('scripts')
 # -- Ingest unit spike times
 extracellular.UnitSpikeTimes.populate()
 # -- UnitSpikeTimes trial-segmentation

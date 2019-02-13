@@ -9,6 +9,7 @@ import numpy as np
 import scipy.io as sio
 import datajoint as dj
 import h5py as h5
+import tqdm
 
 from . import reference, utilities, acquisition, analysis
 
@@ -76,8 +77,8 @@ class UnitSpikeTimes(dj.Imported):
             split_str = re.split(' - ', tmp_str)
             cell_type[split_str[0]] = split_str[1]
         # - unit info
-        print('Inserting spike unit: ', end = "")
-        for unit_str in ec_event_waveform.keys():
+        # print('Inserting spike unit: ', end = "")
+        for unit_str in tqdm.tqdm(ec_event_waveform.keys()):
             unit_id = int(re.search('\d+', unit_str).group())
             unit_depth = ec_unit_times.get(unit_str).get('depth').value
             key['unit_id'] = unit_id
@@ -88,8 +89,8 @@ class UnitSpikeTimes(dj.Imported):
             key.update(zip(('unit_x', 'unit_y', 'unit_z'), unit_depth))
             key['spike_waveform'] = ec_event_waveform.get(unit_str).get('data').value
             self.insert1(key)
-            print(f'{unit_id} ', end = "")
-        print('')
+        #     print(f'{unit_id} ', end = "")
+        # print('')
         nwb.close()
 
 

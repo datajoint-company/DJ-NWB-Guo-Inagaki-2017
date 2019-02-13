@@ -154,5 +154,5 @@ class TrialSegmentedCurrentInjection(dj.Computed):
             'current_injection_sampling_rate', 'current_injection_start_time', 'current_injection')
         segmented_current_injection = analysis.perform_trial_segmentation(key, event_name, pre_stim_dur, post_stim_dur,
                                                                  current_injection, fs, first_time_point)
-        self.CurrentInjection.insert1(dict(key, segmented_current_injection = segmented_current_injection))
+        self.insert1(dict(key, segmented_current_injection = segmented_current_injection))
         print(f'Perform trial-segmentation of current injection for trial: {key["trial_id"]}')

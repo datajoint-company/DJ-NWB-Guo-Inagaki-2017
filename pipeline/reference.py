@@ -47,7 +47,7 @@ class Hemisphere(dj.Lookup):
     definition = """
     hemisphere: varchar(8)
     """
-    contents = zip(['left', 'right'])
+    contents = zip(['left', 'right', 'bilateral'])
 
 
 @schema
