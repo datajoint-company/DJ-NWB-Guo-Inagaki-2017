@@ -41,13 +41,13 @@ for fname in fnames:
     if utilities.parse_prefix(dob_str.group()) is not None:
         subject_info['date_of_birth'] = utilities.parse_prefix(dob_str.group())
     
-    # strain
-    strain_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']).group() # extract the information related to animal strain
-    strain_dict = {alias: strain for alias, strain in subject.StrainAlias.fetch()}
-    regex_str = ''.join([re.escape(alias) + '|' for alias in strain_dict.keys()])[:-1]
-    strains = [strain_dict[s] for s in re.findall(regex_str, strain_str)]
+    # allele
+    allele_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']).group() # extract the information related to animal allele
+    allele_dict = {alias: allele for alias, allele in subject.AlleleAlias.fetch()}
+    regex_str = ''.join([re.escape(alias) + '|' for alias in allele_dict.keys()])[:-1]
+    alleles = [allele_dict[s] for s in re.findall(regex_str, allele_str)]
     # source
-    source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description']).group()  # extract the information related to animal strain
+    source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
     source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
     regex_str = ''.join([re.escape(alias) + '|' for alias in source_dict.keys()])[:-1]
     subject_info['animal_source'] = source_dict[re.search(regex_str, source_str, re.I).group().lower()] if re.search(regex_str, source_str, re.I) else 'N/A'
@@ -55,8 +55,8 @@ for fname in fnames:
     if subject_info not in subject.Subject.proj():
         with subject.Subject.connection.transaction:
             subject.Subject.insert1(subject_info, ignore_extra_fields=True)
-            subject.Subject.Strain.insert((dict(subject_info, strain = k)
-                                           for k in strains), ignore_extra_fields = True)
+            subject.Subject.Allele.insert((dict(subject_info, allele = k)
+                                           for k in alleles), ignore_extra_fields = True)
 
     # ==================== session ====================
     # -- session_time
