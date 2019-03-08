@@ -78,7 +78,7 @@ def perform_trial_segmentation(trial_key, event_name, pre_stim_dur, post_stim_du
         post_stim_nan_count = 0
         if event_time_point - pre_stim_dur < trial_start:
             pre_stim_nan_count = int((trial_start - (event_time_point - pre_stim_dur)) * fs)
-            pre_stim_dur = 0
+            pre_stim_dur = event_time_point - trial_start
             print(f'Warning: Out of bound prestimulus duration, pad {pre_stim_nan_count} NaNs')
         if event_time_point + post_stim_dur > trial_stop:
             post_stim_nan_count = int((event_time_point + post_stim_dur - trial_stop) * fs)

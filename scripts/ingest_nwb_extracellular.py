@@ -44,12 +44,12 @@ for fname in fnames:
     # allele
     allele_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']).group() # extract the information related to animal allele
     allele_dict = {alias: allele for alias, allele in subject.AlleleAlias.fetch()}
-    regex_str = ''.join([re.escape(alias) + '|' for alias in allele_dict.keys()])[:-1]
+    regex_str = '|'.join([re.escape(alias) for alias in allele_dict.keys()])
     alleles = [allele_dict[s] for s in re.findall(regex_str, allele_str)]
     # source
     source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
     source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
-    regex_str = ''.join([re.escape(alias) + '|' for alias in source_dict.keys()])[:-1]
+    regex_str = '|'.join([re.escape(alias) for alias in source_dict.keys()])
     subject_info['animal_source'] = source_dict[re.search(regex_str, source_str, re.I).group().lower()] if re.search(regex_str, source_str, re.I) else 'N/A'
 
     if subject_info not in subject.Subject.proj():
