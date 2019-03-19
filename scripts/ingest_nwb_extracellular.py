@@ -43,9 +43,9 @@ for fname in fnames:
     
     # allele
     allele_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']).group() # extract the information related to animal allele
-    allele_dict = {alias: allele for alias, allele in subject.AlleleAlias.fetch()}
+    allele_dict = {alias.lower(): allele for alias, allele in subject.AlleleAlias.fetch()}
     regex_str = '|'.join([re.escape(alias) for alias in allele_dict.keys()])
-    alleles = [allele_dict[s] for s in re.findall(regex_str, allele_str)]
+    alleles = [allele_dict[s.lower()] for s in re.findall(regex_str, allele_str, re.I)]
     # source
     source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
     source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
@@ -84,10 +84,11 @@ for fname in fnames:
         reference.Experimenter.insert(({'experimenter': k} for k in experimenters
                                        if {'experimenter': k} not in reference.Experimenter))
 
-        if dict(subject_info, session_time=session_time) not in acquisition.Session.proj():
-            with acquisition.Session.connection.transaction:
+        with acquisition.Session.connection.transaction:
+            if dict(subject_info, session_time = session_time) not in acquisition.Session.proj():
                 acquisition.Session.insert1({**subject_info, **session_info}, ignore_extra_fields=True)
-                acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k) for k in experimenters), ignore_extra_fields=True)
+                acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k)
+                                                         for k in experimenters), ignore_extra_fields=True)
                 # there is still the ExperimentType part table here...
             print(f'Creating Session - Subject: {subject_info["subject_id"]} - Date: {session_info["session_time"]}')
 
