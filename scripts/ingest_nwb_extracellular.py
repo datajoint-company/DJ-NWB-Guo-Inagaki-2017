@@ -43,12 +43,14 @@ for fname in fnames:
     
     # allele
     allele_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']).group() # extract the information related to animal allele
-    allele_dict = {alias.lower(): allele for alias, allele in subject.AlleleAlias.fetch()}
+    allele_dict = {alias.lower(): allele for alias, allele in zip(
+        subject.AlleleAlias.fetch('allele_alias', 'allele'))}
     regex_str = '|'.join([re.escape(alias) for alias in allele_dict.keys()])
     alleles = [allele_dict[s.lower()] for s in re.findall(regex_str, allele_str, re.I)]
     # source
     source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
-    source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
+    source_dict = {alias.lower(): source for alias, source in zip(
+        reference.AnimalSourceAlias.fetch('animal_source_alias', 'animal_source'))}
     regex_str = '|'.join([re.escape(alias) for alias in source_dict.keys()])
     subject_info['animal_source'] = source_dict[re.search(regex_str, source_str, re.I).group().lower()] if re.search(regex_str, source_str, re.I) else 'N/A'
 
@@ -302,7 +304,7 @@ for fname in fnames:
 print('======== Populate() Routine =====')
 os.chdir('scripts')
 # -- Ingest unit spike times
-extracellular.UnitSpikeTimes.populate()
+extracellular.UnitSpikeTimes.populate(suppress_errors=True)
 # -- UnitSpikeTimes trial-segmentation
-analysis.RealignedEvent.populate()
-extracellular.TrialSegmentedUnitSpikeTimes.populate()
+analysis.RealignedEvent.populate(suppress_errors=True)
+extracellular.TrialSegmentedUnitSpikeTimes.populate(suppress_errors=True)

@@ -263,12 +263,12 @@ for fname in fnames:
 print('======== Populate() Routine =====')
 os.chdir('scripts')
 # -- Intracellular
-intracellular.MembranePotential.populate()
-intracellular.CurrentInjection.populate()
+intracellular.MembranePotential.populate(suppress_errors=True)
+intracellular.CurrentInjection.populate(suppress_errors=True)
 # -- Behavioral
-behavior.LickTrace.populate()
+behavior.LickTrace.populate(suppress_errors=True)
 # -- Perform trial segmentation
-intracellular.TrialSegmentedMembranePotential.populate()
-intracellular.TrialSegmentedCurrentInjection.populate()
-stimulation.TrialSegmentedPhotoStimulus.populate()
+intracellular.TrialSegmentedMembranePotential.populate(suppress_errors=True)
+intracellular.TrialSegmentedCurrentInjection.populate(suppress_errors=True)
+stimulation.TrialSegmentedPhotoStimulus.populate(suppress_errors=True)
 

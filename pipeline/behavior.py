@@ -35,8 +35,7 @@ class LickTrace(dj.Imported):
         # Search the files in filenames to find a match for "this" session (based on key)
         sess_data_file = utilities.find_session_matched_nwbfile(sess_data_dir, animal_id, date_of_experiment)
         if sess_data_file is None:
-            print(f'BehaviorAcquisition import failed for: {animal_id} - {date_of_experiment}')
-            return
+            raise FileNotFoundError(f'BehaviorAcquisition import failed for: {animal_id} - {date_of_experiment}')
         nwb = h5.File(os.path.join(sess_data_dir, sess_data_file), 'r')
         #  ============= Now read the data and start ingesting =============
         print('Insert behavioral data for: subject: {0} - date: {1}'.format(key['subject_id'], key['session_time']))
