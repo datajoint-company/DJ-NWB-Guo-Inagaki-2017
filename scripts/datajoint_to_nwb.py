@@ -17,7 +17,7 @@ from pynwb import NWBFile, NWBHDF5IO
 # =============================================
 # Each NWBFile represent a session, thus for every session in acquisition.Session, we build one NWBFile
 
-for session_key in acquisition.Session.fetch('KEY', limit=1):
+for session_key in acquisition.Session.fetch('KEY'):
     this_session = (acquisition.Session & session_key).fetch1()
     # =============== General ====================
     # -- NWB file - a NWB2.0 file for each session
@@ -40,7 +40,7 @@ for session_key in acquisition.Session.fetch('KEY', limit=1):
         species=subj['species'])
     # =============== Intracellular ====================
     cell = ((intracellular.Cell & session_key).fetch1()
-            if len(intracellular.Cell & session_key) == 1
+            if intracellular.Cell & session_key
             else None)
     if cell:
         # metadata
@@ -90,7 +90,7 @@ for session_key in acquisition.Session.fetch('KEY', limit=1):
 
     # =============== Extracellular ====================
     probe_insertion = ((extracellular.ProbeInsertion & session_key).fetch1()
-                       if len(extracellular.ProbeInsertion & session_key) == 1
+                       if extracellular.ProbeInsertion & session_key
                        else None)
     if probe_insertion:
         probe = nwbfile.create_device(name = probe_insertion['probe_name'])
@@ -132,7 +132,7 @@ for session_key in acquisition.Session.fetch('KEY', limit=1):
 
     # =============== Behavior ====================
     behavior_data = ((behavior.LickTrace & session_key).fetch1()
-                     if len(behavior.LickTrace & session_key) == 1
+                     if behavior.LickTrace & session_key
                      else None)
     if behavior_data:
         behav_acq = pynwb.behavior.BehavioralTimeSeries(name = 'lick_trace')
@@ -150,7 +150,7 @@ for session_key in acquisition.Session.fetch('KEY', limit=1):
 
     # =============== Photostimulation ====================
     photostim = ((stimulation.PhotoStimulation & session_key).fetch1()
-                       if len(stimulation.PhotoStimulation & session_key) == 1
+                       if stimulation.PhotoStimulation & session_key
                        else None)
     if photostim:
         photostim_device = (stimulation.PhotoStimDevice & photostim).fetch1()
@@ -180,7 +180,7 @@ for session_key in acquisition.Session.fetch('KEY', limit=1):
     #                                                                       'id', 'start_time' and 'stop_time'.
     # Other trial-related information needs to be added in to the trial-table as additional columns (with column name
     # and column description)
-    if len(acquisition.TrialSet & session_key).fetch() == 1:
+    if acquisition.TrialSet & session_key:
         # Get trial descriptors from TrialSet.Trial and TrialStimInfo
         trial_columns = [{'name': tag,
                           'description': re.sub('\s+:|\s+', ' ', re.search(

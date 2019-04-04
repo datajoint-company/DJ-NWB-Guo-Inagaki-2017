@@ -45,7 +45,7 @@ class CorticalLayer(dj.Lookup):
 @schema
 class Hemisphere(dj.Lookup):
     definition = """
-    hemisphere: varchar(8)
+    hemisphere: varchar(16)
     """
     contents = zip(['left', 'right', 'bilateral'])
 
