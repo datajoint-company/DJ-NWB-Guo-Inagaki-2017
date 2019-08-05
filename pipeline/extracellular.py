@@ -47,12 +47,12 @@ class UnitSpikeTimes(dj.Imported):
     unit_id : smallint
     ---
     -> reference.Probe.Channel
-    spike_times: longblob  # (s) time of each spike, with respect to the start of session 
-    unit_cell_type: varchar(32)  # e.g. cell-type of this unit (e.g. wide width, narrow width spiking)
-    unit_x: float  # (mm)
-    unit_y: float  # (mm)
-    unit_z: float  # (mm)
-    spike_waveform: longblob  # waveform(s) of each spike at each spike time (spike_time x waveform_timestamps)
+    spike_times: longblob               # (s) time of each spike, with respect to the start of session 
+    unit_cell_type: varchar(32)         # e.g. cell-type of this unit (e.g. wide width, narrow width spiking)
+    unit_x: float                       # (mm)
+    unit_y: float                       # (mm)
+    unit_z: float                       # (mm)
+    spike_waveform: longblob            # waveform(s) of each spike at each spike time (spike_time x waveform_timestamps)
     """
 
     def make(self, key):

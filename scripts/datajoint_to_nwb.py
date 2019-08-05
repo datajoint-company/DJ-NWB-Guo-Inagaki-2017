@@ -14,28 +14,33 @@ from pipeline import (reference, subject, acquisition, stimulation, analysis,
 import pynwb
 from pynwb import NWBFile, NWBHDF5IO
 
-# =============================================
+# ============================== SET CONSTANTS ==========================================
 # Each NWBFile represent a session, thus for every session in acquisition.Session, we build one NWBFile
+default_nwb_output_dir = os.path.join('data', 'NWB 2.0')
 
-for session_key in acquisition.Session.fetch('KEY'):
+
+def export_to_nwb(session_key, nwb_output_dir=default_nwb_output_dir, save=False, overwrite=True):
     this_session = (acquisition.Session & session_key).fetch1()
     # =============== General ====================
     # -- NWB file - a NWB2.0 file for each session
     nwbfile = NWBFile(
         session_description=this_session['session_note'],
-        identifier='_'.join([this_session['subject_id'],
-                             this_session['session_time'].strftime('%Y-%m-%d_%H-%M-%S')]),
+        identifier='_'.join(
+            [this_session['subject_id'],
+             this_session['session_time'].strftime('%Y-%m-%d_%H-%M-%S')]),
         session_start_time=this_session['session_time'],
         file_create_date=datetime.now(tzlocal()),
-        experimenter='; '.join((acquisition.Session.Experimenter & session_key).fetch('experimenter')),
-        institution='Janelia Research Campus',  # TODO: not in pipeline
-        related_publications='doi:10.1038/nature22324')  # TODO: not in pipeline
+        experimenter='; '.join((acquisition.Session.Experimenter
+                                & session_key).fetch('experimenter')),
+        institution='Janelia Research Campus',
+        related_publications='doi:10.1038/nature22324')
     # -- subject
     subj = (subject.Subject & session_key).fetch1()
     nwbfile.subject = pynwb.file.Subject(
         subject_id=this_session['subject_id'],
         description=subj['subject_description'],
-        genotype=' x '.join((subject.Subject.Allele & session_key).fetch('allele')),
+        genotype=' x '.join((subject.Subject.Allele
+                             & session_key).fetch('allele')),
         sex=subj['sex'],
         species=subj['species'])
     # =============== Intracellular ====================
@@ -44,12 +49,13 @@ for session_key in acquisition.Session.fetch('KEY'):
             else None)
     if cell:
         # metadata
+        cell = (intracellular.Cell & session_key).fetch1()
         whole_cell_device = nwbfile.create_device(name=cell['device_name'])
         ic_electrode = nwbfile.create_ic_electrode(
             name=cell['cell_id'],
             device=whole_cell_device,
             description='N/A',
-            filtering='low-pass: 10kHz',  # TODO: not in pipeline
+            filtering='low-pass: 10kHz',
             location='; '.join([f'{k}: {str(v)}'
                                 for k, v in (reference.ActionLocation & cell).fetch1().items()]))
         # acquisition - membrane potential
@@ -58,9 +64,9 @@ for session_key in acquisition.Session.fetch('KEY'):
             'membrane_potential_start_time', 'membrane_potential_sampling_rate')
         nwbfile.add_acquisition(pynwb.icephys.PatchClampSeries(name='membrane_potential',
                                                                electrode=ic_electrode,
-                                                               unit='mV',  # TODO: not in pipeline
+                                                               unit='mV',
                                                                conversion=1e-3,
-                                                               gain=1.0,  # TODO: not in pipeline
+                                                               gain=1.0,
                                                                data=mp,
                                                                starting_time=mp_start_time,
                                                                rate=mp_fs))
@@ -104,8 +110,8 @@ for session_key in acquisition.Session.fetch('KEY'):
         for chn in (reference.Probe.Channel & probe_insertion).fetch(as_dict=True):
             nwbfile.add_electrode(id=chn['channel_id'],
                                   group=electrode_group,
-                                  filtering='Bandpass filtered 300-6K Hz',  # TODO: not in pipeline
-                                  imp=-1.,  # TODO: not in pipeline
+                                  filtering='Bandpass filtered 300-6K Hz',
+                                  imp=-1.,
                                   x=chn['channel_x_pos'],
                                   y=chn['channel_y_pos'],
                                   z=chn['channel_z_pos'],
@@ -115,7 +121,7 @@ for session_key in acquisition.Session.fetch('KEY'):
         nwbfile.add_unit_column(name='unit_x', description='x-coordinate of this unit')
         nwbfile.add_unit_column(name='unit_y', description='y-coordinate of this unit')
         nwbfile.add_unit_column(name='unit_z', description='z-coordinate of this unit')
-        nwbfile.add_unit_column(name='unit_cell_type', description='cell type (e.g. wide width, narrow width spiking)')
+        nwbfile.add_unit_column(name='cell_type', description='cell type (e.g. wide width, narrow width spiking)')
 
         for unit in (extracellular.UnitSpikeTimes & probe_insertion).fetch(as_dict=True):
             # make an electrode table region (which electrode(s) is this unit coming from)
@@ -125,7 +131,7 @@ for session_key in acquisition.Session.fetch('KEY'):
                              unit_x=unit['unit_x'],
                              unit_y=unit['unit_y'],
                              unit_z=unit['unit_z'],
-                             unit_cell_type=unit['unit_cell_type'],
+                             cell_type=unit['unit_cell_type'],
                              spike_times=unit['spike_times'],
                              waveform_mean=np.mean(unit['spike_waveform'], axis=0),
                              waveform_sd=np.std(unit['spike_waveform'], axis=0))
@@ -141,10 +147,10 @@ for session_key in acquisition.Session.fetch('KEY'):
         lt_start_time = behavior_data.pop('lick_trace_start_time')
         lt_fs = behavior_data.pop('lick_trace_sampling_rate')
         for b_k, b_v in behavior_data.items():
-            behav_acq.create_timeseries(name = b_k,
-                                        unit = 'a.u.',
-                                        conversion = 1.0,
-                                        data = b_v,
+            behav_acq.create_timeseries(name=b_k,
+                                        unit='a.u.',
+                                        conversion=1.0,
+                                        data=b_v,
                                         starting_time=lt_start_time,
                                         rate=lt_fs)
 
@@ -182,11 +188,13 @@ for session_key in acquisition.Session.fetch('KEY'):
     # and column description)
     if acquisition.TrialSet & session_key:
         # Get trial descriptors from TrialSet.Trial and TrialStimInfo
-        trial_columns = [{'name': tag,
-                          'description': re.sub('\s+:|\s+', ' ', re.search(
-                              f'(?<={tag})(.*)', str((acquisition.TrialSet.Trial * stimulation.TrialPhotoStimInfo).heading)).group())}
-                         for tag in (acquisition.TrialSet.Trial * stimulation.TrialPhotoStimInfo).fetch(as_dict=True, limit=1)[0].keys()
-                         if tag not in (acquisition.TrialSet.Trial & stimulation.TrialPhotoStimInfo).primary_key + ['start_time', 'stop_time']]
+        trial_columns = [
+            {'name': tag,
+             'description': re.sub('\s+:|\s+', ' ', re.search(
+                 f'(?<={tag})(.*)', str((acquisition.TrialSet.Trial * stimulation.TrialPhotoStimInfo).heading)).group())}
+            for tag in (acquisition.TrialSet.Trial * stimulation.TrialPhotoStimInfo).fetch(as_dict=True, limit=1)[0].keys()
+            if tag not in (acquisition.TrialSet.Trial & stimulation.TrialPhotoStimInfo).primary_key + ['start_time', 'stop_time']
+        ]
 
         # Trial Events
         trial_events = set((acquisition.TrialSet.EventTime & session_key).fetch('trial_event'))
@@ -198,30 +206,43 @@ for session_key in acquisition.Session.fetch('KEY'):
         for c in trial_columns + event_names:
             nwbfile.add_trial_column(**c)
 
-        photostim_tag_default = {tag: '' for tag in stimulation.TrialPhotoStimInfo().fetch(as_dict=True, limit=1)[0].keys()
-                                 if tag not in stimulation.TrialPhotoStimInfo.primary_key}
+        photostim_tag_default = {
+            tag: '' for tag in stimulation.TrialPhotoStimInfo().fetch(as_dict=True, limit=1)[0].keys()
+            if tag not in stimulation.TrialPhotoStimInfo.primary_key}
         # Add entry to the trial-table
         for trial in (acquisition.TrialSet.Trial & session_key).fetch(as_dict=True):
             events = dict(zip(*(acquisition.TrialSet.EventTime & trial).fetch('trial_event', 'event_time')))
 
             photostim_tag = (stimulation.TrialPhotoStimInfo & trial).fetch(as_dict=True)
-            trial_tag_value = {**trial, **events, **photostim_tag[0]} if len(photostim_tag) == 1 else {**trial, **photostim_tag_default}
+            trial_tag_value = ({**trial, **events, **photostim_tag[0]}
+                               if len(photostim_tag) == 1 else {**trial, **events, **photostim_tag_default})
             # rename 'trial_id' to 'id'
             trial_tag_value['id'] = trial_tag_value['trial_id']
             [trial_tag_value.pop(k) for k in acquisition.TrialSet.Trial.primary_key]
             nwbfile.add_trial(**trial_tag_value)
 
     # =============== Write NWB 2.0 file ===============
-    save_path = os.path.join('data', 'NWB 2.0')
-    save_file_name = ''.join([nwbfile.identifier, '.nwb'])
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    with NWBHDF5IO(os.path.join(save_path, save_file_name), mode = 'w') as io:
-        io.write(nwbfile)
-        print(f'Write NWB 2.0 file: {save_file_name}')
+    if save:
+        save_file_name = ''.join([nwbfile.identifier, '.nwb'])
+        if not os.path.exists(nwb_output_dir):
+            os.makedirs(nwb_output_dir)
+        if not overwrite and os.path.exists(os.path.join(nwb_output_dir, save_file_name)):
+            return nwbfile
+        with NWBHDF5IO(os.path.join(nwb_output_dir, save_file_name), mode = 'w') as io:
+            io.write(nwbfile)
+            print(f'Write NWB 2.0 file: {save_file_name}')
+
+    return nwbfile
 
 
+# ============================== EXPORT ALL ==========================================
 
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        nwb_outdir = sys.argv[1]
+    else:
+        nwb_outdir = default_nwb_output_dir
 
-
+    for skey in acquisition.Session.fetch('KEY'):
+        export_to_nwb(skey, nwb_output_dir=nwb_outdir, save=True)
 
