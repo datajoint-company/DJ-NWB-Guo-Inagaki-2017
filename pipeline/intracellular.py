@@ -12,7 +12,7 @@ import h5py as h5
 
 from . import reference, utilities, acquisition, analysis
 
-schema = dj.schema(dj.config.get('database.prefix', '') + 'intracellular')
+schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'intracellular')
 
 
 @schema

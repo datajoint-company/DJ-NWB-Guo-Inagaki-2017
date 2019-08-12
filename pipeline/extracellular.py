@@ -13,7 +13,7 @@ import tqdm
 
 from . import reference, utilities, acquisition, analysis
 
-schema = dj.schema(dj.config.get('database.prefix', '') + 'extracellular')
+schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'extracellular')
 
 
 @schema
@@ -103,7 +103,7 @@ class VMVALUnit(dj.Computed):
     """
 
     vm_center = (0.95, -4.33, -1.5)
-    dis_threshold = 0.4
+    dis_threshold = 0.4  # mm
 
     key_source = UnitSpikeTimes & ProbeInsertion & 'brain_region = "Thalamus"'
 

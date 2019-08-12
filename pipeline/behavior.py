@@ -13,7 +13,7 @@ import h5py as h5
 from . import reference, subject, utilities, stimulation, acquisition, analysis
 
 
-schema = dj.schema(dj.config.get('database.prefix', '') + 'behavior')
+schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'behavior')
 
 @schema
 class LickTrace(dj.Imported):
