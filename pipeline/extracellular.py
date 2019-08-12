@@ -95,6 +95,25 @@ class UnitSpikeTimes(dj.Imported):
 
 
 @schema
+class VMVALUnit(dj.Computed):
+    definition = """  # units in the ventral-medial/ventral-anterior-lateral of the thalamus
+    -> UnitSpikeTimes    
+    ---
+    in_vmval: bool
+    """
+
+    vm_center = (0.95, -4.33, -1.5)
+    dis_threshold = 0.4
+
+    key_source = UnitSpikeTimes & ProbeInsertion & 'brain_region = "Thalamus"'
+
+    def make(self, key):
+        uloc = (UnitSpikeTimes & key).fetch1('unit_x', 'unit_y', 'unit_z')
+        dist = np.linalg.norm(np.array(uloc) - np.array(self.vm_center))
+        self.insert1(dict(key, in_vmval=bool(dist <= self.dis_threshold)))
+
+
+@schema
 class TrialSegmentedUnitSpikeTimes(dj.Computed):
     definition = """
     -> UnitSpikeTimes
