@@ -3,7 +3,7 @@ Schema of subject information.
 '''
 import datajoint as dj
 
-schema = dj.schema(dj.config.get('database.prefix', '') + 'gi2017_reference')
+schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'reference')
 
 
 @schema
@@ -17,20 +17,20 @@ class WholeCellDevice(dj.Lookup):
 
 @schema
 class Probe(dj.Lookup):
-    definition = """ # Description of a particular model of probe.
-    probe_name: varchar(128)      # String naming probe model
-    channel_counts: smallint            # number of channels in the probe
+    definition = """            # Description of a particular model of probe.
+    probe_name: varchar(128)    # String naming probe model
+    channel_counts: smallint    # number of channels in the probe
     """
 
     class Channel(dj.Part):
         definition = """
         -> master
-        channel_id:         smallint     # id of a channel on the probe
+        channel_id: smallint    # id of a channel on the probe
         ---
         channel_x_pos:  float   # x position relative to the tip of the probe (um)
         channel_y_pos:  float   # y position relative to the tip of the probe (um)
         channel_z_pos:  float   # y position relative to the tip of the probe (um)
-        shank_id: smallint  # the shank id of this probe this channel is located on 
+        shank_id: smallint      # the shank id of this probe this channel is located on 
         """
 
 
@@ -45,9 +45,9 @@ class CorticalLayer(dj.Lookup):
 @schema
 class Hemisphere(dj.Lookup):
     definition = """
-    hemisphere: varchar(8)
+    hemisphere: varchar(16)
     """
-    contents = zip(['left', 'right'])
+    contents = zip(['left', 'right', 'bilateral'])
 
 
 @schema
@@ -181,11 +181,3 @@ class TrialResponse(dj.Lookup):
     trial_response: varchar(32)
     """
     contents = zip(['correct', 'incorrect', 'no response', 'early lick', 'N/A'])
-
-@schema
-class TrialStimType(dj.Lookup):
-    definition = """ # The stimulation type of this trial, e.g. 'no stim', 'photo stimulation', 'photo inhibition'
-    trial_stim_type: varchar(32)
-    """
-    contents = zip(['no stim', 'photo stimulation', 'photo inhibition', 'N/A'])
-    

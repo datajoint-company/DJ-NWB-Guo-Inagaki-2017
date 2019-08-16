@@ -6,25 +6,22 @@ Created on Mon Dec  3 16:22:42 2018
 """
 import os
 import re
-os.chdir('..')
+
 import h5py as h5
 import numpy as np
 from decimal import Decimal
-
 import datajoint as dj
-from pipeline import reference, subject, acquisition, stimulation, analysis #, behavior, ephys, action
-from pipeline import utilities
+
+from pipeline import (reference, subject, acquisition, stimulation, analysis,
+                      intracellular, extracellular, behavior, utilities)
 
 
 # Merge all schema and generate the overall ERD (then save in "/images")
-all_erd = dj.ERD(reference) + dj.ERD(subject) + dj.ERD(stimulation) + dj.ERD(acquisition) + dj.ERD(analysis) #+ dj.ERD(behavior) + dj.ERD(ephys) + dj.ERD(action)
+all_erd = (dj.ERD(reference) + dj.ERD(subject)
+           + dj.ERD(stimulation) + dj.ERD(acquisition)
+           + dj.ERD(analysis) + dj.ERD(behavior)
+           + dj.ERD(intracellular) + dj.ERD(extracellular))
 all_erd.save('./images/all_erd.png')
-
-acq_erd = dj.ERD(acquisition)
-acq_erd.save('./images/acquisition_erd.png')
-
-analysis_erd = dj.ERD(analysis)
-analysis_erd.save('./images/analysis_erd.png')
 
 # ================== Dataset ==================
 path = os.path.join('.', 'data', 'whole_cell_nwb2.0')
@@ -53,25 +50,23 @@ for fname in fnames:
     if utilities.parse_prefix(dob_str.group()) is not None:
         subject_info['date_of_birth'] = utilities.parse_prefix(dob_str.group())
         
-    # source and strain
-    strain_str = re.search('(?<=Animal Strain:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
-    if strain_str is not None:  # if found, search found string to find matched strain in db
-        for s in subject.StrainAlias.fetch():
-            m = re.search(re.escape(s[0]), strain_str.group(), re.I) 
-            if m is not None:
-                subject_info['strain'] = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
-                break
-    source_str = re.search('(?<=Animal source:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
-    if source_str is not None:  # if found, search found string to find matched strain in db
-        for s in reference.AnimalSourceAlias.fetch():
-            m = re.search(re.escape(s[0]), source_str.group(), re.I) 
-            if m is not None:
-                subject_info['animal_source'] = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
-                break
+    # allele
+    allele_str = re.search('(?<=Animal Strain:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
+    allele_dict = {alias.lower(): allele for alias, allele in subject.AlleleAlias.fetch()}
+    regex_str = '|'.join([re.escape(alias) for alias in allele_dict.keys()])
+    alleles = [allele_dict[s.lower()] for s in re.findall(regex_str, allele_str, re.I)]
+    # source
+    source_str = re.search('(?<=Animal source:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
+    source_dict = {alias.lower(): source for alias, source in reference.AnimalSourceAlias.fetch()}
+    regex_str = '|'.join([re.escape(alias) for alias in source_dict.keys()])
+    subject_info['animal_source'] = source_dict[re.search(regex_str, source_str, re.I).group().lower()] if re.search(regex_str, source_str, re.I) else 'N/A'
 
-    if subject_info not in subject.Subject.proj():
-        subject.Subject.insert1(subject_info, ignore_extra_fields=True)
-    
+    with subject.Subject.connection.transaction:
+        if subject_info not in subject.Subject.proj():
+            subject.Subject.insert1(subject_info, ignore_extra_fields=True)
+            subject.Subject.Allele.insert((dict(subject_info, allele = k)
+                                           for k in alleles), ignore_extra_fields = True)
+
     # ==================== session ====================
     # -- session_time
     session_time = utilities.parse_prefix(nwb['session_start_time'].value)
@@ -94,13 +89,11 @@ for fname in fnames:
         # experimenter and experiment type (possible multiple experimenters or types)
         experimenters = [experimenters] if np.array(experimenters).size <= 1 else experimenters  # in case there's only 1 experimenter
 
-        reference.Experimenter.insert(({'experimenter': k} for k in experimenters
-                                        if {'experimenter': k} not in reference.Experimenter))
-        acquisition.ExperimentType.insert(({'experiment_type': k} for k in experiment_types
-                                        if {'experiment_type': k} not in acquisition.ExperimentType))
+        reference.Experimenter.insert(zip(experimenters), skip_duplicates = True)
+        acquisition.ExperimentType.insert(zip(experiment_types), skip_duplicates = True)
 
-        if dict(subject_info, session_time=session_time) not in acquisition.Session.proj():
-            with acquisition.Session.connection.transaction:
+        with acquisition.Session.connection.transaction:
+            if dict(subject_info, session_time = session_time) not in acquisition.Session.proj():
                 acquisition.Session.insert1({**subject_info, **session_info}, ignore_extra_fields=True)
                 acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k) for k in experimenters), ignore_extra_fields=True)
                 acquisition.Session.ExperimentType.insert((dict({**subject_info, **session_info}, experiment_type=k) for k in experiment_types), ignore_extra_fields=True)
@@ -109,17 +102,17 @@ for fname in fnames:
     # ==================== Trials ====================
     trial_key = {'subject_id': subject_info["subject_id"], 'session_time': session_info["session_time"]}
     # -- read trial-related info -- nwb['epochs'], nwb['analysis'], nwb['stimulus']['presentation'])
-    trial_details = dict(trial_names=[t for t in nwb['epochs']],
-                         trial_descs=[nwb['epochs'][t]['description'].value for t in nwb['epochs']],
-                         start_times=[nwb['epochs'][t]['start_time'].value for t in nwb['epochs']],
-                         stop_times=[nwb['epochs'][t]['stop_time'].value for t in nwb['epochs']],
-                         good_trials=np.array(nwb['analysis']['good_trials']),
-                         trial_type_string=np.array(nwb['analysis']['trial_type_string']),
-                         trial_type_mat=np.array(nwb['analysis']['trial_type_mat']),
-                         cue_start_times=np.array(nwb['stimulus']['presentation']['cue_start']['timestamps']),
-                         cue_end_times=np.array(nwb['stimulus']['presentation']['cue_end']['timestamps']),
-                         pole_in_times=np.array(nwb['stimulus']['presentation']['pole_in']['timestamps']),
-                         pole_out_times=np.array(nwb['stimulus']['presentation']['pole_out']['timestamps']))
+    trial_details = dict(trial_names=[tr for tr in nwb['epochs']],
+                         trial_descs=[v['description'].value for v in nwb['epochs'].values()],
+                         start_times=[v['start_time'].value for v in nwb['epochs'].values()],
+                         stop_times=[v['stop_time'].value for v in nwb['epochs'].values()],
+                         good_trials=nwb['analysis']['good_trials'].value,
+                         trial_type_string=nwb['analysis']['trial_type_string'].value,
+                         trial_type_mat=nwb['analysis']['trial_type_mat'].value,
+                         cue_start_times=nwb['stimulus']['presentation']['cue_start']['timestamps'].value,
+                         cue_end_times=nwb['stimulus']['presentation']['cue_end']['timestamps'].value,
+                         pole_in_times=nwb['stimulus']['presentation']['pole_in']['timestamps'].value,
+                         pole_out_times=nwb['stimulus']['presentation']['pole_out']['timestamps'].value)
 
     # form new key-values pair and insert key
     trial_key['trial_counts'] = len(trial_details['trial_names'])
@@ -206,8 +199,8 @@ for fname in fnames:
                                   cell_id=cell_id,
                                   cell_type='N/A',
                                   device_name=ie_device)
-    if cell_key not in acquisition.Cell.proj():
-        acquisition.Cell.insert1(cell_key, ignore_extra_fields=True)
+    if cell_key not in intracellular.Cell.proj():
+        intracellular.Cell.insert1(cell_key, ignore_extra_fields=True)
 
     # ==================== Photo stimulation ====================    
     # -- read data - optogenetics
@@ -218,7 +211,7 @@ for fname in fnames:
                                         .value.decode('UTF-8')).group())
     splittedstr = re.split(',\s?coordinates:\s?', nwb['general']['optogenetics'][opto_site_name]['location'].value.decode('UTF-8'))
     brain_region = splittedstr[0]
-    coord_ap_ml_dv = re.findall('\d+.\d+', splittedstr[-1])
+    coord_ap_ml_dv = re.findall('\d+\.\d+', splittedstr[-1])
     
     # hemisphere: left-hemisphere is ipsi, so anything contra is right-hemisphere
     brain_region, hemisphere = utilities.get_brain_hemisphere(brain_region)
@@ -254,10 +247,10 @@ for fname in fnames:
     # -- PhotoStimulation 
     # only 1 photostim per session, perform at the same time with session
     if dict({**subject_info, **session_info}, 
-            photostim_datetime=session_info['session_time']) not in acquisition.PhotoStimulation.proj():   
+            photostim_datetime=session_info['session_time']) not in stimulation.PhotoStimulation.proj():
         photostim_data = nwb['stimulus']['presentation']['photostimulus']['data'].value
-        photostim_timestamps = nwb['stimulus']['presentation']['photostimulus']['timestamps'].value   
-        acquisition.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
+        photostim_timestamps = nwb['stimulus']['presentation']['photostimulus']['timestamps'].value
+        stimulation.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
                                                   photostim_datetime=session_info['session_time'],
                                                   photostim_timeseries=photostim_data,
                                                   photostim_start_time=photostim_timestamps[0],
@@ -267,12 +260,15 @@ for fname in fnames:
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
+print('======== Populate() Routine =====')
+os.chdir('scripts')
 # -- Intracellular
-acquisition.IntracellularAcquisition.populate()
+intracellular.MembranePotential.populate(suppress_errors=True)
+intracellular.CurrentInjection.populate(suppress_errors=True)
 # -- Behavioral
-acquisition.BehaviorAcquisition.populate()
+behavior.LickTrace.populate(suppress_errors=True)
 # -- Perform trial segmentation
-analysis.TrialSegmentedBehavior.populate()
-analysis.TrialSegmentedIntracellular.populate()
-analysis.TrialSegmentedPhotoStimulus.populate()
+intracellular.TrialSegmentedMembranePotential.populate(suppress_errors=True)
+intracellular.TrialSegmentedCurrentInjection.populate(suppress_errors=True)
+stimulation.TrialSegmentedPhotoStimulus.populate(suppress_errors=True)
 

@@ -6,16 +6,16 @@ Created on Mon Dec  3 16:22:42 2018
 """
 import os
 import re
-os.chdir('..')
+
 import h5py as h5
 import numpy as np
 from decimal import Decimal
 
-from pipeline import reference, subject, acquisition, stimulation, analysis
-from pipeline import utilities
+from pipeline import (reference, subject, acquisition, stimulation, analysis,
+                      intracellular, extracellular, behavior, utilities)
 
 # ================== Dataset ==================
-path = os.path.join('.','data','extracellular','datafiles')
+path = os.path.join('.', 'data', 'extracellular', 'datafiles')
 fnames = os.listdir(path)
 
 for fname in fnames:
@@ -41,24 +41,24 @@ for fname in fnames:
     if utilities.parse_prefix(dob_str.group()) is not None:
         subject_info['date_of_birth'] = utilities.parse_prefix(dob_str.group())
     
-    # source and strain
-    strain_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']) # extract the information related to animal strain
-    if strain_str is not None: # if found, search found string to find matched strain in db
-        for s in subject.StrainAlias.fetch():
-            m = re.search(re.escape(s[0]), strain_str.group(), re.I) 
-            if m is not None:
-                subject_info['strain'] = (subject.StrainAlias & {'strain_alias': s[0]}).fetch1('strain')
-                break
-    source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description'])  # extract the information related to animal strain
-    if source_str is not None:  # if found, search found string to find matched strain in db
-        for s in reference.AnimalSourceAlias.fetch():
-            m = re.search(re.escape(s[0]), source_str.group(), re.I) 
-            if m is not None:
-                subject_info['animal_source'] = (reference.AnimalSourceAlias & {'animal_source_alias': s[0]}).fetch1('animal_source')
-                break
-            
+    # allele
+    allele_str = re.search('(?<=animalStrain:\s)(.*)', subject_info['description']).group() # extract the information related to animal allele
+    allele_dict = {alias.lower(): allele for alias, allele in zip(
+        subject.AlleleAlias.fetch('allele_alias', 'allele'))}
+    regex_str = '|'.join([re.escape(alias) for alias in allele_dict.keys()])
+    alleles = [allele_dict[s.lower()] for s in re.findall(regex_str, allele_str, re.I)]
+    # source
+    source_str = re.search('(?<=animalSource:\s)(.*)', subject_info['description']).group()  # extract the information related to animal allele
+    source_dict = {alias.lower(): source for alias, source in zip(
+        reference.AnimalSourceAlias.fetch('animal_source_alias', 'animal_source'))}
+    regex_str = '|'.join([re.escape(alias) for alias in source_dict.keys()])
+    subject_info['animal_source'] = source_dict[re.search(regex_str, source_str, re.I).group().lower()] if re.search(regex_str, source_str, re.I) else 'N/A'
+
     if subject_info not in subject.Subject.proj():
-        subject.Subject.insert1(subject_info, ignore_extra_fields=True)
+        with subject.Subject.connection.transaction:
+            subject.Subject.insert1(subject_info, ignore_extra_fields=True)
+            subject.Subject.Allele.insert((dict(subject_info, allele = k)
+                                           for k in alleles), ignore_extra_fields = True)
 
     # ==================== session ====================
     # -- session_time
@@ -86,10 +86,11 @@ for fname in fnames:
         reference.Experimenter.insert(({'experimenter': k} for k in experimenters
                                        if {'experimenter': k} not in reference.Experimenter))
 
-        if dict(subject_info, session_time=session_time) not in acquisition.Session.proj():
-            with acquisition.Session.connection.transaction:
+        with acquisition.Session.connection.transaction:
+            if dict(subject_info, session_time = session_time) not in acquisition.Session.proj():
                 acquisition.Session.insert1({**subject_info, **session_info}, ignore_extra_fields=True)
-                acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k) for k in experimenters), ignore_extra_fields=True)
+                acquisition.Session.Experimenter.insert((dict({**subject_info, **session_info}, experimenter=k)
+                                                         for k in experimenters), ignore_extra_fields=True)
                 # there is still the ExperimentType part table here...
             print(f'Creating Session - Subject: {subject_info["subject_id"]} - Date: {session_info["session_time"]}')
 
@@ -170,7 +171,7 @@ for fname in fnames:
                                                                      'cue_end_times', 'pole_in_times', 'pole_out_times'))),
                                                    ignore_extra_fields=True, allow_direct_insert=True)
 
-            # ======== Now add trial stimulation descriptors to the TrialStimInfo table ====
+            # ======== Now add trial stimulation descriptors to the TrialPhotoStimInfo table ====
             trial_key['photo_stim_period'] = ('N/A' if trial_details['trial_type_mat'][-5, idx] == 0
                                               else photostim_period_choices[trial_details['trial_type_mat'][-5, idx]])
             trial_key['photo_stim_power'] = trial_details['trial_type_mat'][-4, idx]
@@ -178,7 +179,7 @@ for fname in fnames:
             trial_key['photo_loc_galvo_y'] = trial_details['trial_type_mat'][-2, idx]
             trial_key['photo_loc_galvo_z'] = trial_details['trial_type_mat'][-1, idx]
             # insert
-            acquisition.TrialStimInfo.insert1(trial_key, ignore_extra_fields=True, allow_direct_insert=True)
+            stimulation.TrialPhotoStimInfo.insert1(trial_key, ignore_extra_fields=True, allow_direct_insert=True)
             print(f'{trial_id} ', end="")
         print('')
 
@@ -226,8 +227,8 @@ for fname in fnames:
     probe_insertion = dict({**subject_info, **session_info, **action_location},
                            probe_name=device_names[0], channel_counts=len(electrodes))
 
-    if probe_insertion not in acquisition.ProbeInsertion.proj():
-        acquisition.ProbeInsertion.insert1(probe_insertion, ignore_extra_fields=True)
+    if probe_insertion not in extracellular.ProbeInsertion.proj():
+        extracellular.ProbeInsertion.insert1(probe_insertion, ignore_extra_fields=True)
 
     # ==================== Photo stimulation ====================
     # -- Device
@@ -279,7 +280,7 @@ for fname in fnames:
     
         # -- PhotoStimulation
         if dict({**subject_info, **session_info},
-                photostim_datetime = session_info['session_time']) not in acquisition.PhotoStimulation.proj():
+                photostim_datetime = session_info['session_time']) not in stimulation.PhotoStimulation.proj():
             # only 1 photostim per session, perform at the same time with session
             photostim_data = nwb['stimulus']['presentation']['photostimulus_1']['data'].value
             photostim_timestamps = nwb['stimulus']['presentation']['photostimulus_1']['timestamps'].value
@@ -289,7 +290,7 @@ for fname in fnames:
             photostim_start_time = None if not isinstance(photostim_timestamps, np.ndarray) else photostim_timestamps[0]
             photostim_sampling_rate = (None if not isinstance(photostim_timestamps, np.ndarray)
                                        else 1/np.mean(np.diff(photostim_timestamps)))
-            acquisition.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
+            stimulation.PhotoStimulation.insert1(dict({**subject_info, **session_info, **photim_stim_info},
                                                       photostim_datetime=session_info['session_time'],
                                                       photostim_timeseries=photostim_data,
                                                       photostim_start_time=photostim_start_time,
@@ -300,8 +301,10 @@ for fname in fnames:
     nwb.close()
 
 # ====================== Starting import and compute procedure ======================
+print('======== Populate() Routine =====')
+os.chdir('scripts')
 # -- Ingest unit spike times
-acquisition.UnitSpikeTimes.populate()
+extracellular.UnitSpikeTimes.populate(suppress_errors=True)
 # -- UnitSpikeTimes trial-segmentation
-analysis.RealignedEvent.populate()
-analysis.TrialSegmentedUnitSpikeTimes.populate()
+analysis.RealignedEvent.populate(suppress_errors=True)
+extracellular.TrialSegmentedUnitSpikeTimes.populate(suppress_errors=True)
