@@ -1,18 +1,18 @@
 '''
 Schema of intracellular information.
 '''
-import re
-import os
-from datetime import datetime
 
+import os
+import pathlib
 import numpy as np
-import scipy.io as sio
 import datajoint as dj
 import h5py as h5
 
 from . import reference, utilities, acquisition, analysis
 
 schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'intracellular')
+
+sess_data_dir = pathlib.Path(dj.config['custom'].get('intracellular_directory')).as_posix()
 
 
 @schema
@@ -40,7 +40,6 @@ class MembranePotential(dj.Imported):
 
     def make(self, key):
         # ============ Dataset ============
-        sess_data_dir = os.path.join('..', 'data', 'whole_cell_nwb2.0')
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
@@ -56,14 +55,14 @@ class MembranePotential(dj.Imported):
         # -- MembranePotential
         membrane_potential_time_stamps = nwb['acquisition']['timeseries']['membrane_potential']['timestamps'].value
         self.insert1(dict(key,
-                                            membrane_potential = nwb['acquisition']['timeseries']['membrane_potential'][
-                                                'data'].value,
-                                            membrane_potential_wo_spike =
-                                            nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike'][
-                                                'data'].value,
-                                            membrane_potential_start_time = membrane_potential_time_stamps[0],
-                                            membrane_potential_sampling_rate = 1 / np.mean(
-                                                np.diff(membrane_potential_time_stamps))))
+                          membrane_potential=nwb['acquisition']['timeseries']['membrane_potential'][
+                              'data'].value,
+                          membrane_potential_wo_spike=
+                          nwb['analysis']['Vm_wo_spikes']['membrane_potential_wo_spike'][
+                              'data'].value,
+                          membrane_potential_start_time=membrane_potential_time_stamps[0],
+                          membrane_potential_sampling_rate=1 / np.mean(
+                              np.diff(membrane_potential_time_stamps))))
         nwb.close()
 
 
@@ -79,7 +78,6 @@ class CurrentInjection(dj.Imported):
 
     def make(self, key):
         # ============ Dataset ============
-        sess_data_dir = os.path.join('..', 'data', 'whole_cell_nwb2.0')
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']

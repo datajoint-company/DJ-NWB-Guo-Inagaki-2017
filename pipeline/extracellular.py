@@ -4,7 +4,7 @@ Schema of extracellular information.
 import re
 import os
 from datetime import datetime
-
+import pathlib
 import numpy as np
 import scipy.io as sio
 import datajoint as dj
@@ -14,6 +14,8 @@ import tqdm
 from . import reference, utilities, acquisition, analysis
 
 schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'extracellular')
+
+sess_data_dir = pathlib.Path(dj.config['custom'].get('extracellular_directory')).as_posix()
 
 
 @schema
@@ -57,7 +59,6 @@ class UnitSpikeTimes(dj.Imported):
 
     def make(self, key):
         # ================ Dataset ================
-        sess_data_dir = os.path.join('..', 'data', 'extracellular', 'datafiles')
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']
