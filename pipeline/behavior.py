@@ -4,7 +4,7 @@ Schema of behavioral information.
 import re
 import os
 from datetime import datetime
-
+import pathlib
 import numpy as np
 import scipy.io as sio
 import datajoint as dj
@@ -14,6 +14,9 @@ from . import reference, subject, utilities, stimulation, acquisition, analysis
 
 
 schema = dj.schema(dj.config['custom'].get('database.prefix', '') + 'behavior')
+
+sess_data_dir = pathlib.Path(dj.config['custom'].get('intracellular_directory')).as_posix()
+
 
 @schema
 class LickTrace(dj.Imported):
@@ -28,7 +31,6 @@ class LickTrace(dj.Imported):
 
     def make(self, key):
         # ============ Dataset ============
-        sess_data_dir = os.path.join('..', 'data', 'whole_cell_nwb2.0')
         # Get the Session definition from the keys of this session
         animal_id = key['subject_id']
         date_of_experiment = key['session_time']

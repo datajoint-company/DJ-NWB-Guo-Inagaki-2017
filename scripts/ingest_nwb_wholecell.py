@@ -6,7 +6,7 @@ Created on Mon Dec  3 16:22:42 2018
 """
 import os
 import re
-
+import pathlib
 import h5py as h5
 import numpy as np
 from decimal import Decimal
@@ -24,7 +24,7 @@ all_erd = (dj.ERD(reference) + dj.ERD(subject)
 all_erd.save('./images/all_erd.png')
 
 # ================== Dataset ==================
-path = os.path.join('.', 'data', 'whole_cell_nwb2.0')
+path = pathlib.Path(dj.config['custom'].get('intracellular_directory')).as_posix()
 fnames = os.listdir(path)
 
 for fname in fnames:
@@ -131,21 +131,26 @@ for fname in fnames:
             # ======== Now add trial descriptors ====
             # -- good/bad trial_status (nwb['analysis']['good_trials'])
             trial_key['trial_is_good'] = True if trial_details['good_trials'].flatten()[idx] == 1 else False
-            # -- trial_type and trial_stim_present (nwb['epochs'][trial]['description'])
-            trial_type, trial_stim_present = re.split(', ', trial_details['trial_descs'][idx])
-            # map the hardcoded trial description read from data to the lookup table 'reference.TrialType'
-            trial_type_choices = {'lick l trial': 'lick left', 'lick r trial': 'lick right'}
-            trial_key['trial_type'] = trial_type_choices.get(trial_type.lower(), 'N/A')
-            trial_key['trial_stim_present'] = (trial_stim_present == 'Stim')
-            # -- trial_response (nwb['analysis']['trial_type_string'])
-            # note, the last type_string value is duplicated info of "stim"/"no stim" above, so ignore it here (hence the [idx, :-1])
-            match_idx = np.where(trial_details['trial_type_mat'][idx, :-1] == 1)
-            trial_response = trial_details['trial_type_string'].flatten()[match_idx].item(0).decode('UTF-8')
-            if re.search('correct', trial_response.lower()) is not None:
-                trial_response = 'correct'
-            elif re.search('incorrect', trial_response.lower()) is not None:
-                trial_response = 'incorrect'
-            trial_key['trial_response'] = trial_response.lower()
+            trial_code = trial_details['trial_type_mat'][idx]
+
+            # -- trial type --
+            if trial_code[1] or trial_code[3]:
+                trial_key['trial_type'] = 'lick left'
+            elif trial_code[0] or trial_code[2]:
+                trial_key['trial_type'] = 'lick right'
+            else:
+                trial_key['trial_type'] = 'non-performing'
+            # -- trial response --
+            if trial_code[4]:
+                trial_key['trial_response'] = 'early lick'
+            elif trial_code[0] or trial_code[1]:
+                trial_key['trial_response'] = 'correct'
+            elif trial_code[2] or trial_code[3]:
+                trial_key['trial_response'] = 'incorrect'
+            elif trial_code[5]:
+                trial_key['trial_response'] = 'no response'
+            # -- trial stim --
+            trial_key['trial_stim_present'] = bool(trial_code[-1])
             # insert
             acquisition.TrialSet.Trial.insert1(trial_key, ignore_extra_fields=True, skip_duplicates=True, allow_direct_insert=True)
             # ======== Now add trial event timing to the EventTime part table ====
@@ -263,12 +268,13 @@ for fname in fnames:
 print('======== Populate() Routine =====')
 os.chdir('scripts')
 # -- Intracellular
-intracellular.MembranePotential.populate(suppress_errors=True)
-intracellular.CurrentInjection.populate(suppress_errors=True)
+settings = {'reserve_jobs': True, 'suppress_errors': True}
+intracellular.MembranePotential.populate(**settings)
+intracellular.CurrentInjection.populate(**settings)
 # -- Behavioral
-behavior.LickTrace.populate(suppress_errors=True)
+behavior.LickTrace.populate(**settings)
 # -- Perform trial segmentation
-intracellular.TrialSegmentedMembranePotential.populate(suppress_errors=True)
-intracellular.TrialSegmentedCurrentInjection.populate(suppress_errors=True)
-stimulation.TrialSegmentedPhotoStimulus.populate(suppress_errors=True)
+intracellular.TrialSegmentedMembranePotential.populate(**settings)
+intracellular.TrialSegmentedCurrentInjection.populate(**settings)
+stimulation.TrialSegmentedPhotoStimulus.populate(**settings)
 
