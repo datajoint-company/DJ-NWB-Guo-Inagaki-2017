@@ -8,11 +8,14 @@ import pytz
 import re
 import numpy as np
 import pandas as pd
+import warnings
 
 from pipeline import (reference, subject, acquisition, stimulation, analysis,
                       intracellular, extracellular, behavior, utilities)
 import pynwb
 from pynwb import NWBFile, NWBHDF5IO
+
+warnings.filterwarnings('ignore', module='pynwb')
 
 # ============================== SET CONSTANTS ==========================================
 # Each NWBFile represent a session, thus for every session in acquisition.Session, we build one NWBFile
@@ -86,8 +89,7 @@ def export_to_nwb(session_key, nwb_output_dir=default_nwb_output_dir, save=False
             'current_injection', 'current_injection_start_time', 'current_injection_sampling_rate')
         nwbfile.add_stimulus(pynwb.icephys.CurrentClampStimulusSeries(name='CurrentClampStimulus',
                                                                       electrode=ic_electrode,
-                                                                      unit='nA',
-                                                                      conversion=1e-6,
+                                                                      conversion=1e-9,
                                                                       gain=1.0,
                                                                       data=current_injection,
                                                                       starting_time=ci_start_time,
@@ -154,7 +156,7 @@ def export_to_nwb(session_key, nwb_output_dir=default_nwb_output_dir, save=False
                      if behavior.LickTrace & session_key
                      else None)
     if behavior_data:
-        behav_acq = pynwb.behavior.BehavioralTimeSeries(name = 'lick_trace')
+        behav_acq = pynwb.behavior.BehavioralTimeSeries(name='lick_trace')
         nwbfile.add_acquisition(behav_acq)
         [behavior_data.pop(k) for k in behavior.LickTrace.primary_key]
         lt_start_time = behavior_data.pop('lick_trace_start_time')
@@ -187,9 +189,8 @@ def export_to_nwb(session_key, nwb_output_dir=default_nwb_output_dir, save=False
             nwbfile.add_stimulus(pynwb.ogen.OptogeneticSeries(
                 name='_'.join(['photostim_on', photostim['photostim_datetime'].strftime('%Y-%m-%d_%H-%M-%S')]),
                 site=stim_site,
-                unit = 'mW',
                 resolution = 0.0,
-                conversion = 1e-6,
+                conversion = 1e-3,
                 data = photostim['photostim_timeseries'],
                 starting_time = photostim['photostim_start_time'],
                 rate = photostim['photostim_sampling_rate']))
@@ -201,14 +202,14 @@ def export_to_nwb(session_key, nwb_output_dir=default_nwb_output_dir, save=False
     # and column description)
     if acquisition.TrialSet & session_key:
         # Get trial descriptors from TrialSet.Trial and TrialStimInfo
-        trial_columns = [
-            {'name': tag.replace('trial_', ''),
-             'description': re.sub('\s+:|\s+', ' ', re.search(
-                 f'(?<={tag})(.*)', str((acquisition.TrialSet.Trial * stimulation.TrialPhotoStimInfo).heading)).group())}
-            for tag in (acquisition.TrialSet.Trial
-                        * stimulation.TrialPhotoStimInfo).fetch(as_dict=True, limit=1)[0].keys()
-            if tag not in (acquisition.TrialSet.Trial
-                           & stimulation.TrialPhotoStimInfo).primary_key + ['start_time', 'stop_time']]
+        trial_columns = [{'name': tag.replace('trial_', ''),
+                          'description': re.search(
+                              f'(?<={tag})(.*)#(.*)',
+                              str((acquisition.TrialSet.Trial
+                                   * stimulation.TrialPhotoStimInfo).heading)).groups()[-1].strip()}
+                         for tag in (acquisition.TrialSet.Trial * stimulation.TrialPhotoStimInfo).heading.names
+                         if tag not in (acquisition.TrialSet.Trial
+                                        & stimulation.TrialPhotoStimInfo).primary_key + ['start_time', 'stop_time']]
 
         # Trial Events - discard 'trial_start' and 'trial_stop' as we already have start_time and stop_time
         # also add `_time` suffix to all events
@@ -222,17 +223,18 @@ def export_to_nwb(session_key, nwb_output_dir=default_nwb_output_dir, save=False
         for c in trial_columns + event_names:
             nwbfile.add_trial_column(**c)
 
-        photostim_tag_default = {
-            tag: '' for tag in stimulation.TrialPhotoStimInfo().fetch(as_dict=True, limit=1)[0].keys()
-            if tag not in stimulation.TrialPhotoStimInfo.primary_key}
+        photostim_tag_default = {tag: '' for tag in stimulation.TrialPhotoStimInfo.heading.names
+                                 if tag not in stimulation.TrialPhotoStimInfo.primary_key}
+
         # Add entry to the trial-table
         for trial in (acquisition.TrialSet.Trial & session_key).fetch(as_dict=True):
             events = dict(zip(*(acquisition.TrialSet.EventTime & trial
                                 & [{'trial_event': e} for e in trial_events]).fetch('trial_event', 'event_time')))
 
-            photostim_tag = (stimulation.TrialPhotoStimInfo & trial).fetch(as_dict=True)
-            trial_tag_value = ({**trial, **events, **photostim_tag[0]}
-                               if len(photostim_tag) == 1 else {**trial, **events, **photostim_tag_default})
+            trial_tag_value = ({**trial, **events, **(stimulation.TrialPhotoStimInfo & trial).fetch1()}
+                               if (stimulation.TrialPhotoStimInfo & trial)
+                               else {**trial, **events, **photostim_tag_default})
+
             # rename 'trial_id' to 'id'
             trial_tag_value['id'] = trial_tag_value['trial_id']
             [trial_tag_value.pop(k) for k in acquisition.TrialSet.Trial.primary_key]
