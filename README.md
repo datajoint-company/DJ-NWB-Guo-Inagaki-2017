@@ -25,7 +25,70 @@ Data queries and usages are demonstrated in this [Jupyter Notebook](notebooks/gu
 ## Schema Diagram
 ![ERD of the entire data pipeline](images/all_erd.png)
 
+## Instruction to execute this pipeline
 
+### Download original data 
 
+After cloning this repository, download the original data. Once downloaded, you should find 2 folders containing
+ intracellular and extracellular data, `whole_cell_nwb2.0` and `extracellular` respectively.
+ 
+### Setup "dj_local_conf.json"
 
+`dj_local_conf.json` is a configuration file for DataJoint, which minimally specifies the
+ database connection information, as well as several other optional configurations.
+ 
+ Create a new `dj_local_conf.json` at the root of your project directory (where you have this repository cloned),
+  with the following format:
+ 
+ ```json
+{
+    "database.host": "database_hostname",
+    "database.user": "your_username_here",
+	"database.password": "your_password_here",
+    "database.port": 3306,
+    "database.reconnect": true,
+    "loglevel": "INFO",
+    "safemode": true,
+    "custom": {
+        "database.prefix": "gi2017_",
+        "extracellular_directory": "/path_to_downloaded_data/extracellular/datafiles",
+        "intracellular_directory": "/path_to_downloaded_data/whole_cell_nwb2.0"
+    }
+}
+```
 
+Note: make sure to provide the correct database hostname, username and password.
+ Then specify the path to the downloaded data directories for intracellular and extracellular data.
+
+### Ingest data into the pipeline
+
+On a new terminal, navigate to the root of your project directory, then execute the following commands:
+
+```
+python scripts/ingest_nwb_extracellular.py
+```
+
+```
+python scripts/ingest_nwb_wholecell.py
+```
+
+```
+python scripts/populate.py
+```
+
+### Mission accomplished!
+You now have a functional pipeline up and running, with data fully ingested.
+ You can explore the data, starting with the provided demo notebook.
+ 
+From your project root, launch ***jupyter notebook***:
+```
+jupyter notebook
+```
+
+### Export to NWB 2.0
+Data from this DataJoint pipeline can be exported in NWB 2.0 format using this [datajoint_to_nwb.py](../scripts/datajoint_to_nwb.py) script. 
+To perform this export for all ingested data, specify the export location (e.g. `./data/exported_nwb2.0`), execute this command from the project root:
+
+```
+python scripts/datajoint_to_nwb.py ./data/exported_nwb2.0
+```

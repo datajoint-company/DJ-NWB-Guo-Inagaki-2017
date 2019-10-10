@@ -16,13 +16,6 @@ from pipeline import (reference, subject, acquisition, stimulation, analysis,
                       intracellular, extracellular, behavior, utilities)
 
 
-# Merge all schema and generate the overall ERD (then save in "/images")
-all_erd = (dj.ERD(reference) + dj.ERD(subject)
-           + dj.ERD(stimulation) + dj.ERD(acquisition)
-           + dj.ERD(analysis) + dj.ERD(behavior)
-           + dj.ERD(intracellular) + dj.ERD(extracellular))
-all_erd.save('./images/all_erd.png')
-
 # ================== Dataset ==================
 path = pathlib.Path(dj.config['custom'].get('intracellular_directory')).as_posix()
 fnames = os.listdir(path)
@@ -263,18 +256,3 @@ for fname in fnames:
 
     # -- finish manual ingestion for this file
     nwb.close()
-
-# ====================== Starting import and compute procedure ======================
-print('======== Populate() Routine =====')
-os.chdir('scripts')
-# -- Intracellular
-settings = {'reserve_jobs': True, 'suppress_errors': True}
-intracellular.MembranePotential.populate(**settings)
-intracellular.CurrentInjection.populate(**settings)
-# -- Behavioral
-behavior.LickTrace.populate(**settings)
-# -- Perform trial segmentation
-intracellular.TrialSegmentedMembranePotential.populate(**settings)
-intracellular.TrialSegmentedCurrentInjection.populate(**settings)
-stimulation.TrialSegmentedPhotoStimulus.populate(**settings)
-
