@@ -20,7 +20,7 @@ This repository contains the **Python 3.7** code to convert the DataJoint pipeli
 Each NWB file represents one recording session. The conversion script can be found [here](scripts/datajoint_to_nwb.py)
 
 ## Demonstration of the data pipeline
-Data queries and usages are demonstrated in this [Jupyter Notebook](notebooks/guo-inagaki-2017_example.ipynb), where several figures from the paper are reproduced. 
+Data queries and usages are demonstrated in this [Jupyter Notebook](notebooks/Guo-Inagaki-2017-examples.ipynb), where several figures from the paper are reproduced. 
 
 ## Schema Diagram
 ![ERD of the entire data pipeline](images/all_erd.png)
