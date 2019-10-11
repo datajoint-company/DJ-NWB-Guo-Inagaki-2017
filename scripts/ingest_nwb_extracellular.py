@@ -6,6 +6,8 @@ Created on Mon Dec  3 16:22:42 2018
 """
 import os
 import re
+import pathlib
+import datajoint as dj
 
 import h5py as h5
 import numpy as np
@@ -15,7 +17,7 @@ from pipeline import (reference, subject, acquisition, stimulation, analysis,
                       intracellular, extracellular, behavior, utilities)
 
 # ================== Dataset ==================
-path = os.path.join('.', 'data', 'extracellular', 'datafiles')
+path = pathlib.Path(dj.config['custom'].get('extracellular_directory')).as_posix()
 fnames = os.listdir(path)
 
 for fname in fnames:
@@ -299,12 +301,3 @@ for fname in fnames:
 
     # -- finish manual ingestion for this file
     nwb.close()
-
-# ====================== Starting import and compute procedure ======================
-print('======== Populate() Routine =====')
-os.chdir('scripts')
-# -- Ingest unit spike times
-extracellular.UnitSpikeTimes.populate(suppress_errors=True)
-# -- UnitSpikeTimes trial-segmentation
-analysis.RealignedEvent.populate(suppress_errors=True)
-extracellular.TrialSegmentedUnitSpikeTimes.populate(suppress_errors=True)
